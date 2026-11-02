@@ -29,6 +29,10 @@ through Xiaohongshu's official internal API.
 4. The captured signature is cached in `localStorage` (24 h) so future sessions skip
    the one-time capture entirely.
 
+## Screenshot
+
+![The floating control panel at the bottom-right of the Xiaohongshu favorites page, with buttons for mark mode, select all loaded, run, pause, clear, and a speed selector. Marked cards are outlined with a red check badge.](../images/script-xhs.png)
+
 ---
 
 ## Install
