@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         雅思词汇生词袋 · IELTS Vocab Bag
+// @name         雅思词汇掌握度助手 · IELTS Vocab Tracker
 // @namespace    https://www.leonwang.cc/ielts-vocab/
-// @version      2.2.0
+// @version      2.3.0
 // @description  为 leonwang.cc 雅思词汇卡片增加“认识”标记、三档筛选与本单元熟悉度进度条；单词详情默认隐藏中文、只留英文例句，状态可导出 / 导入 JSON。
 // @match        https://www.leonwang.cc/ielts-vocab/*
 // @run-at       document-idle
@@ -11,6 +11,7 @@
 (function () {
   'use strict';
 
+  // 沿用旧 key，重命名后老用户的已认识标记不会丢失
   const STORE_KEY = 'ielts-vocab-bag.v1';
   const grid = document.getElementById('cardGrid');
   if (!grid) return; // 只在词汇卡片页生效
@@ -30,7 +31,7 @@
       data.settings = data.settings && typeof data.settings === 'object' ? data.settings : {};
       return data;
     } catch (e) {
-      console.warn('[生词袋] 读取本地数据失败', e);
+      console.warn('[词汇追踪] 读取本地数据失败', e);
       return emptyStore();
     }
   }
@@ -44,7 +45,7 @@
     try {
       localStorage.setItem(STORE_KEY, JSON.stringify(store));
     } catch (e) {
-      console.warn('[生词袋] 保存失败（可能是浏览器禁用了本地存储）', e);
+      console.warn('[词汇追踪] 保存失败（可能是浏览器禁用了本地存储）', e);
     }
   }
 
@@ -283,19 +284,19 @@
   const launcher = document.createElement('button');
   launcher.type = 'button';
   launcher.className = 'vb-launcher';
-  launcher.title = '生词袋（已认识的单词）';
-  launcher.innerHTML = '🎒<span class="vb-badge" id="vbBadge">0</span>';
+  launcher.title = '已认识的单词（掌握度追踪）';
+  launcher.innerHTML = '✅<span class="vb-badge" id="vbBadge">0</span>';
 
   const panel = document.createElement('div');
   panel.className = 'vb-panel';
   panel.innerHTML = `
     <div class="vb-head">
-      <strong>🎒 生词袋</strong>
+      <strong>✅ 已认识</strong>
       <span class="vb-sub" id="vbSub"></span>
       <button type="button" id="vbClose" title="关闭">✕</button>
     </div>
     <div class="vb-tools">
-      <span class="vb-tools-note">袋子里的词已灰显</span>
+      <span class="vb-tools-note">已认识的词在各筛选中灰显</span>
       <button type="button" class="vb-mini" id="vbExport" title="导出全部章节的 JSON 状态">导出</button>
       <button type="button" class="vb-mini" id="vbImport" title="从 JSON 文件合并导入">导入</button>
     </div>
@@ -534,7 +535,7 @@
       titles[opt.value] = opt.textContent.trim();
     });
     return {
-      app: 'ielts-vocab-bag',
+      app: 'ielts-vocab-tracker',
       version: 1,
       exportedAt: new Date().toISOString(),
       chapterTitles: titles,
@@ -550,12 +551,12 @@
     const d = new Date();
     const stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
     a.href = url;
-    a.download = `ielts-vocab-bag-${stamp}.json`;
+    a.download = `ielts-vocab-tracker-${stamp}.json`;
     document.body.appendChild(a);
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 2000);
-    showToast('生词袋状态已导出');
+    showToast('掌握度状态已导出');
   }
 
   async function copyJson() {
