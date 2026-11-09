@@ -23,7 +23,8 @@ batch-uncollect them in the background through the internal API.
 
 Mark words you already know on the leonwang.cc IELTS vocabulary handout, filter the grid
 down to the ones still unknown, and track progress per chapter. The detail popup hides
-Chinese by default for self-testing, and marks export / import as JSON.
+Chinese by default for self-testing, marks export / import as JSON, and a low-glare dark
+theme is included.
 
 ![The IELTS vocabulary grid with a filter bar and per-chapter progress bar above it. Some cards are greyed out with a green check to show they are marked as known.](images/script-ielts-tracker.png)
 

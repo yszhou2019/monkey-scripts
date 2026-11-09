@@ -30,6 +30,8 @@ content or data.
 - **Chinese hidden by default.** Opening a word shows only the English example; a
   `显示中文` button reveals the meaning, translation, word root, and extra notes. It resets to
   hidden on every open, including keyboard navigation.
+- **Dark theme.** A theme pill next to the filters cycles Auto → Dark → Light. Auto follows
+  the operating system, and the choice is remembered on that device only.
 - **Known-words panel.** The ✅ button opens a list of every marked word in the current
   chapter, with one-click removal.
 - **Export / import.** Back up all chapters to JSON, copy it to the clipboard, or import and
@@ -63,6 +65,19 @@ import entry point.
 
 ---
 
+## Dark theme
+
+For late-night review the whole page switches to a low-glare dark palette; the detail popup
+and the tracker panel follow suit. The theme pill sits next to the filters and cycles
+Auto → Dark → Light. Auto follows the operating system, and the choice is saved per device,
+so your phone can stay dark while the desktop stays light.
+
+![The vocabulary grid in the dark theme: a dark blue-grey background, greyed-out known cards, and a theme pill reading 深色 next to the filters.](../images/script-ielts-tracker-dark.png)
+
+![The word detail popup in the dark theme with Chinese hidden, showing only the English example.](../images/script-ielts-tracker-dark-card.png)
+
+---
+
 ## Install
 
 1. Install a userscript manager in your browser:
@@ -82,6 +97,7 @@ import entry point.
 | ✓ on a card | Mark / unmark the word as known. Known cards turn grey but stay in the grid. |
 | `全部` / `不认识` / `认识` | Filter the grid. The counts next to each label update live. |
 | Progress bar | Known words ÷ total words for the chapter, with the percentage on the right. |
+| `🌗 自动` / `🌙 深色` / `☀️ 浅色` | Cycle the theme. Auto follows the system; the choice is remembered on this device. |
 | ✅ launcher (bottom-right) | Open the known-words panel for the current chapter. |
 | `显示中文` / `隐藏中文` | Toggle the Chinese content in the detail popup. |
 | `导出` | Download all chapters as a JSON file. |
