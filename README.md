@@ -19,6 +19,19 @@ batch-uncollect them in the background through the internal API.
 
 ---
 
+### IELTS Vocab Tracker — Familiarity Marking for IELTS Vocabulary
+
+Mark words you already know on the leonwang.cc IELTS vocabulary handout, filter the grid
+down to the ones still unknown, and track progress per chapter. The detail popup hides
+Chinese by default for self-testing, and marks export / import as JSON.
+
+![The IELTS vocabulary grid with a filter bar and per-chapter progress bar above it. Some cards are greyed out with a green check to show they are marked as known.](images/script-ielts-tracker.png)
+
+- Docs: [English](ielts-vocab-tracker/README.md) · [中文](ielts-vocab-tracker/README.zh.md)
+- Install: [`ielts-vocab-tracker/ielts-vocab-tracker.user.js`](ielts-vocab-tracker/ielts-vocab-tracker.user.js)
+
+---
+
 ## Disclaimer
 
 For **personal use only**. Use at your own risk; bulk operations may trigger rate limits

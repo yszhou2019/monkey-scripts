@@ -18,6 +18,18 @@
 
 ---
 
+### 雅思词汇掌握度助手
+
+在 leonwang.cc 的雅思词汇页上标记「已认识」的单词，按认识程度筛选，并查看每个单元的掌握进度。
+详情弹窗默认隐藏中文，方便只看英文自测；标记状态可以导出 / 导入 JSON 备份。
+
+![雅思词汇页顶部有筛选条和本单元进度条，部分卡片变灰并带绿色对勾，表示已标记为认识。](images/script-ielts-tracker.png)
+
+- 文档：[中文](ielts-vocab-tracker/README.zh.md) · [English](ielts-vocab-tracker/README.md)
+- 安装：[`ielts-vocab-tracker/ielts-vocab-tracker.user.js`](ielts-vocab-tracker/ielts-vocab-tracker.user.js)
+
+---
+
 ## 免责声明
 
 仅供**个人使用**。使用风险自负；批量操作可能触发限流或临时封禁。
