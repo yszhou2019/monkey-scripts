@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         雅思词汇掌握度助手 · IELTS Vocab Tracker
 // @namespace    https://www.leonwang.cc/ielts-vocab/
-// @version      2.4.0
-// @description  为 leonwang.cc 雅思词汇卡片增加“认识”标记、三档筛选、本单元熟悉度进度条与深色主题；单词详情默认隐藏中文、只留英文例句，状态可导出 / 导入 JSON。
+// @version      2.5.0
+// @description  为 leonwang.cc 雅思词汇卡片增加“认识”标记、三档筛选、本单元与全站熟悉度进度条、深色主题；单词详情默认隐藏中文、只留英文例句，状态可导出 / 导入 JSON。
 // @match        https://www.leonwang.cc/ielts-vocab/*
 // @run-at       document-start
 // @grant        none
@@ -207,6 +207,168 @@
     });
   }
 
+  // ===================== 共享数据 =====================
+  // 沿用旧 key，重命名后老用户的已认识标记不会丢失
+  const STORE_KEY = 'ielts-vocab-bag.v1';
+  const CHAPTER_COUNT = 22;
+  const TOTALS_KEY = 'ielts-vocab-tracker.totals.v1';
+
+  function emptyStore() {
+    return { version: 1, updatedAt: '', settings: {}, chapters: {} };
+  }
+
+  function readStore() {
+    try {
+      const raw = localStorage.getItem(STORE_KEY);
+      if (!raw) return emptyStore();
+      const data = JSON.parse(raw);
+      if (!data || typeof data !== 'object') return emptyStore();
+      data.chapters = data.chapters && typeof data.chapters === 'object' ? data.chapters : {};
+      data.settings = data.settings && typeof data.settings === 'object' ? data.settings : {};
+      return data;
+    } catch (e) {
+      console.warn('[词汇追踪] 读取本地数据失败', e);
+      return emptyStore();
+    }
+  }
+
+  function writeStore(data) {
+    data.updatedAt = new Date().toISOString();
+    try {
+      localStorage.setItem(STORE_KEY, JSON.stringify(data));
+    } catch (e) {
+      console.warn('[词汇追踪] 保存失败（可能是浏览器禁用了本地存储）', e);
+    }
+  }
+
+  // 2026-11 的章节词数快照，仅在读不到站点缓存时兜底
+  const DEFAULT_TOTALS = {
+    1: 227, 2: 130, 3: 168, 4: 70, 5: 401, 6: 122, 7: 79, 8: 68,
+    9: 175, 10: 135, 11: 91, 12: 172, 13: 132, 14: 139, 15: 135,
+    16: 171, 17: 101, 18: 186, 19: 124, 20: 268, 21: 417, 22: 57,
+  };
+
+  function readTotals() {
+    let saved = {};
+    try {
+      saved = JSON.parse(localStorage.getItem(TOTALS_KEY) || '{}') || {};
+    } catch (e) {
+      saved = {};
+    }
+    const counts = Object.assign({}, DEFAULT_TOTALS);
+    if (saved.counts && typeof saved.counts === 'object') {
+      Object.keys(saved.counts).forEach((id) => {
+        const n = Number(saved.counts[id]);
+        if (n > 0) counts[id] = n;
+      });
+    }
+    return { cacheName: saved.cacheName || '', counts };
+  }
+
+  function writeTotals(cacheName, counts) {
+    try {
+      localStorage.setItem(TOTALS_KEY, JSON.stringify({
+        cacheName,
+        counts,
+        savedAt: new Date().toISOString(),
+      }));
+    } catch (e) {
+      // 本地存储不可用时继续用内存里的默认值
+    }
+  }
+
+  function recordChapterTotal(chapterId, total) {
+    if (!(total > 0)) return;
+    const current = readTotals();
+    if (current.counts[chapterId] === total) return;
+    current.counts[chapterId] = total;
+    writeTotals(current.cacheName, current.counts);
+  }
+
+  // 站点 service worker 会预缓存全部章节数据，优先从这里统计，避免额外下载
+  async function syncTotalsFromCache() {
+    if (!('caches' in window)) return false;
+    let cacheName = '';
+    try {
+      const names = await caches.keys();
+      cacheName = names.find((name) => name.indexOf('ielts-vocab-pwa-') === 0) || '';
+    } catch (e) {
+      return false;
+    }
+    if (!cacheName || readTotals().cacheName === cacheName) return false;
+
+    let cache;
+    try {
+      cache = await caches.open(cacheName);
+    } catch (e) {
+      return false;
+    }
+
+    const counts = {};
+    for (let id = 1; id <= CHAPTER_COUNT; id += 1) {
+      const res = await cache.match(`/ielts-vocab/data-${id}.js`, { ignoreSearch: true });
+      if (!res) return false;
+      const text = await res.text();
+      // 各章数据的引号风格不统一（单引号 / 双引号都有）
+      const n = (text.match(/\bword\s*:\s*['"]/g) || []).length;
+      if (!n) return false;
+      counts[id] = n;
+    }
+    writeTotals(cacheName, counts);
+    return true;
+  }
+
+  // 进度条组件：卡片页与刷词页共用同一套结构与样式
+  const PROGRESS_CSS = `
+    .vb-progress { margin-top: 10px; }
+    .vb-progress-meta {
+      display: flex; align-items: baseline; justify-content: space-between;
+      margin-bottom: 4px; font-size: .72rem; color: #7f8c8d;
+    }
+    .vb-progress-meta strong { font-weight: 700; color: #2c3e50; }
+    .vb-progress-track {
+      height: 6px; border-radius: 999px; overflow: hidden;
+      background: #e3e8ec;
+    }
+    .vb-progress-fill {
+      height: 100%; width: 0; border-radius: 999px;
+      background: linear-gradient(90deg, #3498db, #27ae60);
+      transition: width .3s ease;
+    }
+  `;
+
+  function createProgressBar(label) {
+    const root = document.createElement('div');
+    root.className = 'vb-progress';
+    root.innerHTML = `
+      <div class="vb-progress-meta">
+        <span>${label} <strong class="vb-progress-count">0 / 0</strong></span>
+        <span class="vb-progress-pct">0%</span>
+      </div>
+      <div class="vb-progress-track"><div class="vb-progress-fill"></div></div>
+    `;
+    const countEl = root.querySelector('.vb-progress-count');
+    const pctEl = root.querySelector('.vb-progress-pct');
+    const fillEl = root.querySelector('.vb-progress-fill');
+
+    return {
+      el: root,
+      update(known, total) {
+        root.style.display = total > 0 ? '' : 'none';
+        if (!total) {
+          countEl.textContent = '0 / 0';
+          pctEl.textContent = '0%';
+          fillEl.style.width = '0%';
+          return;
+        }
+        const pct = (known / total) * 100;
+        countEl.textContent = `${known} / ${total}`;
+        pctEl.textContent = `${Math.round(pct * 10) / 10}%`;
+        fillEl.style.width = `${pct.toFixed(2)}%`;
+      },
+    };
+  }
+
   // 只在词汇卡片页启用，避免影响站点其它页面
   const isHandoutPage = /\/ielts-vocab\/handout\.html$/i.test(location.pathname);
   if (isHandoutPage) {
@@ -215,11 +377,9 @@
   }
 
   // ===================== 页面功能 =====================
-  function boot() {
-    // 沿用旧 key，重命名后老用户的已认识标记不会丢失
-    const STORE_KEY = 'ielts-vocab-bag.v1';
+  function bootHandout() {
     const grid = document.getElementById('cardGrid');
-    if (!grid) return; // 只在词汇卡片页生效
+    if (!grid) return;
 
     // 入口不是 handout.html 时（例如站点改版）在这里补上主题
     if (!document.getElementById('vb-theme')) {
@@ -228,37 +388,9 @@
     }
 
     // ===================== 数据 =====================
-    function emptyStore() {
-      return { version: 1, updatedAt: '', settings: {}, chapters: {} };
-    }
-
-    function loadStore() {
-      try {
-        const raw = localStorage.getItem(STORE_KEY);
-        if (!raw) return emptyStore();
-        const data = JSON.parse(raw);
-        if (!data || typeof data !== 'object') return emptyStore();
-        data.chapters = data.chapters && typeof data.chapters === 'object' ? data.chapters : {};
-        data.settings = data.settings && typeof data.settings === 'object' ? data.settings : {};
-        return data;
-      } catch (e) {
-        console.warn('[词汇追踪] 读取本地数据失败', e);
-        return emptyStore();
-      }
-    }
-
-    let store = loadStore();
+    let store = readStore();
     // 每次打开页面都从“全部”开始，筛选只影响当前浏览
     let currentFilter = 'all';
-
-    function saveStore() {
-      store.updatedAt = new Date().toISOString();
-      try {
-        localStorage.setItem(STORE_KEY, JSON.stringify(store));
-      } catch (e) {
-        console.warn('[词汇追踪] 保存失败（可能是浏览器禁用了本地存储）', e);
-      }
-    }
 
     function getChapterId() {
       const active = document.querySelector('.sidebar button.active[data-chapter]');
@@ -289,6 +421,7 @@
     const style = document.createElement('style');
     style.id = 'vb-style';
     style.textContent = `
+      ${PROGRESS_CSS}
       .vb-topbar {
         position: sticky; top: 0; z-index: 5;
         margin: -8px 0 12px; padding: 8px 0 10px;
@@ -296,21 +429,6 @@
       }
       .vb-filter { display: flex; flex-wrap: wrap; gap: 8px; }
       .vb-filter .vb-theme-btn { margin-left: auto; }
-      .vb-progress { margin-top: 10px; }
-      .vb-progress-meta {
-        display: flex; align-items: baseline; justify-content: space-between;
-        margin-bottom: 4px; font-size: .72rem; color: #7f8c8d;
-      }
-      .vb-progress-meta strong { font-weight: 700; color: #2c3e50; }
-      .vb-progress-track {
-        height: 6px; border-radius: 999px; overflow: hidden;
-        background: #e3e8ec;
-      }
-      .vb-progress-fill {
-        height: 100%; width: 0; border-radius: 999px;
-        background: linear-gradient(90deg, #3498db, #27ae60);
-        transition: width .3s ease;
-      }
       .vb-filter button {
         display: inline-flex; align-items: center; gap: 6px;
         border: 1px solid #dfe6e9; background: #fff; color: #576574;
@@ -480,25 +598,12 @@
     filterBar.appendChild(themeBtn);
     updateThemeButton();
 
-    const progress = document.createElement('div');
-    progress.className = 'vb-progress';
-    progress.id = 'vbProgress';
-    progress.innerHTML = `
-      <div class="vb-progress-meta">
-        <span>本单元已认识 <strong id="vbProgressText">0 / 0</strong></span>
-        <span id="vbProgressPct">0%</span>
-      </div>
-      <div class="vb-progress-track"><div class="vb-progress-fill" id="vbProgressFill"></div></div>
-    `;
+    const progress = createProgressBar('本单元已认识');
 
     const topbar = document.createElement('div');
     topbar.className = 'vb-topbar';
-    topbar.append(filterBar, progress);
+    topbar.append(filterBar, progress.el);
     grid.parentNode.insertBefore(topbar, grid);
-
-    const progressText = progress.querySelector('#vbProgressText');
-    const progressPct = progress.querySelector('#vbProgressPct');
-    const progressFill = progress.querySelector('#vbProgressFill');
 
     // ===================== 面板 =====================
     const launcher = document.createElement('button');
@@ -635,7 +740,7 @@
         };
         showToast(`已标记为认识：${word}`);
       }
-      saveStore();
+      writeStore(store);
       applyFilter();
       renderPanel();
     }
@@ -646,20 +751,6 @@
         const count = filter === 'all' ? total : filter === 'unknown' ? total - knownCount : knownCount;
         btn.querySelector('span').textContent = count;
       });
-    }
-
-    function updateProgress(total, knownCount) {
-      progress.style.display = total > 0 ? '' : 'none';
-      if (!total) {
-        progressText.textContent = '0 / 0';
-        progressPct.textContent = '0%';
-        progressFill.style.width = '0%';
-        return;
-      }
-      const pct = (knownCount / total) * 100;
-      progressText.textContent = `${knownCount} / ${total}`;
-      progressPct.textContent = `${Math.round(pct * 10) / 10}%`;
-      progressFill.style.width = `${pct.toFixed(2)}%`;
     }
 
     function updateGridHint(total, knownCount) {
@@ -701,7 +792,8 @@
       });
 
       updateFilterCounts(cards.length, knownCount);
-      updateProgress(cards.length, knownCount);
+      progress.update(knownCount, cards.length);
+      recordChapterTotal(chapterId, cards.length);
       updateGridHint(cards.length, knownCount);
     }
 
@@ -741,7 +833,7 @@
       const bag = getBag(chapterId);
       if (bag[word]) {
         delete bag[word];
-        saveStore();
+        writeStore(store);
         applyFilter();
         renderPanel();
         showToast(`已取消标记：${word}`);
@@ -819,7 +911,7 @@
           added += 1;
         });
       });
-      saveStore();
+      writeStore(store);
       applyFilter();
       renderPanel();
       showToast(added ? `导入完成，新增 ${added} 个单词` : '导入完成，没有新增单词');
@@ -847,7 +939,7 @@
       }
       if (!confirm(`确定清空「${chapterTitle(chapterId)}」的 ${count} 个“认识”标记？`)) return;
       delete store.chapters[chapterId];
-      saveStore();
+      writeStore(store);
       applyFilter();
       renderPanel();
       showToast('已清空本章标记');
@@ -921,6 +1013,70 @@
 
     renderPanel();
     applyFilter();
+  }
+
+  // ===================== 刷词页：全站进度 =====================
+  const OVERVIEW_CSS = `
+    .vb-overall {
+      margin-top: 10px; padding: 10px 16px 12px;
+      background: var(--card-bg, #fff);
+      border-radius: 16px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, .03);
+    }
+    .vb-overall .vb-progress { margin-top: 0; }
+    .vb-overall .vb-progress-meta { color: var(--text-secondary, #7f8c8d); }
+    .vb-overall .vb-progress-meta strong { color: var(--text, #2c3e50); }
+    .vb-overall .vb-progress-track { height: 8px; background: var(--border, #e3e8ec); }
+    .vb-overall .vb-progress-fill { background: linear-gradient(90deg, var(--accent, #3b82f6), #8b5cf6); }
+  `;
+
+  function bootOverview() {
+    const anchor = document.querySelector('.stats');
+    if (!anchor || document.getElementById('vbOverall')) return;
+
+    if (!document.getElementById('vb-style')) {
+      const style = document.createElement('style');
+      style.id = 'vb-style';
+      style.textContent = PROGRESS_CSS + OVERVIEW_CSS;
+      document.head.appendChild(style);
+    }
+
+    const bar = createProgressBar('全部章节已认识');
+    const wrap = document.createElement('div');
+    wrap.className = 'vb-overall';
+    wrap.id = 'vbOverall';
+    wrap.appendChild(bar.el);
+    anchor.insertAdjacentElement('afterend', wrap);
+
+    function render() {
+      const chapters = readStore().chapters;
+      const counts = readTotals().counts;
+      let total = 0;
+      let known = 0;
+      for (let id = 1; id <= CHAPTER_COUNT; id += 1) {
+        const chapterTotal = counts[id] || 0;
+        total += chapterTotal;
+        const bagSize = Object.keys(chapters[id] || {}).length;
+        known += Math.min(bagSize, chapterTotal || bagSize);
+      }
+      bar.update(known, total);
+    }
+
+    render();
+    syncTotalsFromCache().then((changed) => {
+      if (changed) render();
+    });
+    window.addEventListener('storage', (e) => {
+      if (e.key === STORE_KEY || e.key === TOTALS_KEY) render();
+    });
+  }
+
+  function boot() {
+    if (document.getElementById('cardGrid')) {
+      bootHandout();
+    } else if (/\/ielts-vocab\/(index\.html)?$/i.test(location.pathname)) {
+      bootOverview();
+    }
   }
 
   if (document.readyState === 'loading') {
