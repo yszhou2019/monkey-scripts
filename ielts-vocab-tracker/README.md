@@ -1,9 +1,10 @@
 # IELTS Vocab Tracker — Familiarity Marking for IELTS Vocabulary
 
-A Tampermonkey / Violentmonkey userscript for the IELTS vocabulary handout on
-[leonwang.cc](https://www.leonwang.cc/ielts-vocab/handout.html). Mark the words you already
+A Tampermonkey / Violentmonkey userscript for the IELTS vocabulary pages on
+[leonwang.cc](https://www.leonwang.cc/ielts-vocab/index.html). Mark the words you already
 know, filter the grid down to the ones you still need, hide the Chinese while you review,
-and watch a per-chapter progress bar fill up.
+and watch a per-chapter progress bar fill up. The spelling practice page adds one overall
+bar for all chapters, plus the JSON backup controls.
 
 > Works on `https://www.leonwang.cc/ielts-vocab/*`, desktop and mobile.
 
@@ -27,6 +28,9 @@ content or data.
   per-session view setting and always starts at **全部** after a reload.
 - **Per-chapter progress.** A sticky bar above the grid shows `known / total` and a
   percentage for the current chapter.
+- **Overall progress.** The spelling practice page shows one bar covering every chapter
+  (`known / all words` plus a percentage). Word counts are read from the chapter data the
+  site already caches, so there is no extra download.
 - **Chinese hidden by default.** Opening a word shows only the English example; a
   `显示中文` button reveals the meaning, translation, word root, and extra notes. It resets to
   hidden on every open, including keyboard navigation.
@@ -34,8 +38,8 @@ content or data.
   the operating system, and the choice is remembered on that device only.
 - **Known-words panel.** The ✅ button opens a list of every marked word in the current
   chapter, with one-click removal.
-- **Export / import.** Back up all chapters to JSON, copy it to the clipboard, or import and
-  merge it on another browser.
+- **Export / import.** On the practice page, back up all chapters to JSON, copy it to the
+  clipboard, or import and merge it on another browser.
 - **Per-chapter isolation.** Marks are stored per chapter, so switching topics always shows
   the right set.
 - **Survives re-renders.** Switching chapters, uploading an image, or any other page redraw
@@ -57,11 +61,6 @@ Switch to `不认识` to see only the words you still need to learn.
 The detail popup hides Chinese by default — the English example is enough to test yourself.
 
 ![The word detail popup with Chinese hidden: only the English example is visible, plus a button labelled 显示中文 that reveals the rest.](../images/script-ielts-tracker-card.png)
-
-The ✅ panel lists everything marked in the current chapter and doubles as the export /
-import entry point.
-
-![The known-words panel listing every marked word in the current chapter, with export, import, copy, and per-word remove actions.](../images/script-ielts-tracker-panel.png)
 
 ---
 
@@ -86,7 +85,8 @@ so your phone can stay dark while the desktop stays light.
 2. Add `ielts-vocab-tracker.user.js`:
    - **Tampermonkey** → Dashboard → Utilities → *Import* (pick the file), **or**
    - create a new script, paste the file contents, and save.
-3. Open the vocabulary handout. The filter/progress bar appears above the cards.
+3. Open the vocabulary handout for the per-chapter UI, or the spelling practice page for the
+   overall progress and JSON backup controls.
 
 ---
 
@@ -97,16 +97,19 @@ so your phone can stay dark while the desktop stays light.
 | ✓ on a card | Mark / unmark the word as known. Known cards turn grey but stay in the grid. |
 | `全部` / `不认识` / `认识` | Filter the grid. The counts next to each label update live. |
 | Progress bar | Known words ÷ total words for the chapter, with the percentage on the right. |
+| Overall bar (practice page) | Known words ÷ all words across chapters, with the percentage; sits below the session stats. |
 | `🌗 自动` / `🌙 深色` / `☀️ 浅色` | Cycle the theme. Auto follows the system; the choice is remembered on this device. |
 | ✅ launcher (bottom-right) | Open the known-words panel for the current chapter. |
 | `显示中文` / `隐藏中文` | Toggle the Chinese content in the detail popup. |
-| `导出` | Download all chapters as a JSON file. |
-| `导入` | Pick a JSON file and merge it into the current data. |
-| `复制 JSON` | Copy the export payload to the clipboard. |
-| `清空本章` | Remove every mark in the current chapter (asks for confirmation). |
+| `导出` (practice page) | Download all chapters as a JSON file. |
+| `导入` (practice page) | Pick a JSON file and merge it into the current data. |
+| `复制 JSON` (practice page) | Copy the export payload to the clipboard. |
+| `清空本章` (known-words panel) | Remove every mark in the current chapter (asks for confirmation). |
 
 Notes:
 
+- Export / import act on all chapters, so they live on the practice page next to the
+  overall bar; the chapter panel only clears the current chapter.
 - With the `认识` filter active, unmarking the last card makes it disappear immediately —
   that is expected. Switch back to `全部` to keep marking.
 - The filter choice is not persisted; marks are.
@@ -138,6 +141,13 @@ kept so marks made before the rename survive). Nothing is sent anywhere.
 `chapterTitles` so an import can show friendly names. Import **merges**: existing words are
 kept, new ones are added.
 
+Two more local keys are used, neither of which is user content:
+
+- `ielts-vocab-tracker.totals.v1` — cached word counts per chapter, used for the overall
+  percentage. They are read from the site's own cached `data-*.js` files and refreshed when
+  the site's cache version changes; a built-in snapshot is the fallback.
+- `ielts-vocab-tracker.theme.v1` — the Auto / Dark / Light choice for this device.
+
 Clearing the browser's site data removes the marks, so export a backup first.
 
 ---
@@ -146,8 +156,10 @@ Clearing the browser's site data removes the marks, so export a backup first.
 
 - Match rule: `https://www.leonwang.cc/ielts-vocab/*`.
 - The script integrates through a few stable page anchors: `#cardGrid`, `.card .word`,
-  `.card .pos`, `.card .meaning`, `.card-actions`, `.overlay-content`, and
-  `.sidebar button[data-chapter]`.
+  `.card .pos`, `.card .meaning`, `.card-actions`, `.overlay-content`,
+  `.sidebar button[data-chapter]` on the handout, and `.stats` on the practice page.
+- Overall word counts come from `/ielts-vocab/data-<chapter>.js` in the site's
+  service-worker cache; if those files move, only the fallback counts are used.
 - All injected UI uses the `vb-` prefix. If the site is redesigned and cards stop being
   recognised, those anchors are what need updating.
 - Marking a card in `全部` or `不认识` works even while the grid is scrolled; state is keyed
