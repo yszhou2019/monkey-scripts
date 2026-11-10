@@ -7,7 +7,7 @@ action differs.
 > Works on the web app (`xiaohongshu.com`) — the 笔记 / 收藏 / 点赞 tabs.
 > **Every write action asks for confirmation before anything is executed.**
 
-![The unified floating panel at the bottom-right of the Xiaohongshu favorites page, with the action dropdown set to read-only export. Note covers and text are pixelated for privacy; no account information is shown.](../images/script-xhs-batch-actions.png)
+![The unified floating panel at the bottom-right of the Xiaohongshu favorites page, with the action dropdown set to read-only export. Four marked cards are outlined: two green (processed) with check badges and two red (pending) with minus badges. All note covers and text are pixelated for privacy, and no account information is shown.](../images/script-xhs-batch-actions.png)
 
 ---
 
