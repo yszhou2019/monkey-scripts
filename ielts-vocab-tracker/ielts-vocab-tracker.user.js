@@ -335,6 +335,21 @@
       background: linear-gradient(90deg, #3498db, #27ae60);
       transition: width .3s ease;
     }
+    .vb-mini {
+      border: 1px solid #dfe6e9; background: #fff; color: #2c3e50;
+      font-family: inherit; font-size: .74rem; line-height: 1.4;
+      padding: 3px 8px; border-radius: 7px; cursor: pointer;
+    }
+    .vb-mini:hover { border-color: #3498db; color: #3498db; }
+    .vb-toast {
+      position: fixed; left: 50%; bottom: 108px; z-index: 1100;
+      transform: translate(-50%, 12px);
+      max-width: 80vw; padding: 9px 18px; border-radius: 20px;
+      background: rgba(44, 62, 80, .92); color: #fff;
+      font: .84rem/1.4 'Segoe UI', system-ui, sans-serif;
+      opacity: 0; pointer-events: none; transition: opacity .22s, transform .22s;
+    }
+    .vb-toast.show { opacity: 1; transform: translate(-50%, 0); }
   `;
 
   function createProgressBar(label) {
@@ -367,6 +382,125 @@
         fillEl.style.width = `${pct.toFixed(2)}%`;
       },
     };
+  }
+
+  // ===================== 共享：提示与导入导出 =====================
+  let toastEl = null;
+  let toastTimer = null;
+
+  function showToast(text) {
+    if (!toastEl) {
+      toastEl = document.createElement('div');
+      toastEl.className = 'vb-toast';
+      document.body.appendChild(toastEl);
+    }
+    toastEl.textContent = text;
+    toastEl.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toastEl.classList.remove('show'), 1800);
+  }
+
+  function buildExportPayload(chapters) {
+    const titles = {};
+    document.querySelectorAll('#mobileChapterSelect option').forEach((opt) => {
+      if (opt.value) titles[opt.value] = opt.textContent.trim();
+    });
+    Object.keys(chapters).forEach((id) => {
+      if (!titles[id]) titles[id] = `第 ${id} 章`;
+    });
+    return {
+      app: 'ielts-vocab-tracker',
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      chapterTitles: titles,
+      chapters,
+    };
+  }
+
+  function downloadStoreJson(chapters) {
+    const json = JSON.stringify(buildExportPayload(chapters), null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const d = new Date();
+    const stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+    a.href = url;
+    a.download = `ielts-vocab-tracker-${stamp}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    showToast('掌握度状态已导出');
+  }
+
+  async function copyStoreJson(chapters) {
+    const json = JSON.stringify(buildExportPayload(chapters), null, 2);
+    try {
+      await navigator.clipboard.writeText(json);
+      showToast('已复制到剪贴板');
+    } catch (e) {
+      showToast('复制失败，请改用「导出」');
+    }
+  }
+
+  function parseImportPayload(text) {
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch (e) {
+      showToast('导入失败：不是有效的 JSON');
+      return null;
+    }
+    if (!data || typeof data !== 'object' || !data.chapters || typeof data.chapters !== 'object') {
+      showToast('导入失败：缺少 chapters 字段');
+      return null;
+    }
+    return data.chapters;
+  }
+
+  function mergeChapters(target, source) {
+    let added = 0;
+    Object.keys(source).forEach((chapterId) => {
+      const words = source[chapterId];
+      if (!words || typeof words !== 'object') return;
+      if (!target[chapterId]) target[chapterId] = {};
+      Object.keys(words).forEach((key) => {
+        const value = words[key];
+        if (!value || typeof value !== 'object') return;
+        if (target[chapterId][key]) return;
+        target[chapterId][key] = {
+          word: String(value.word || key),
+          pos: String(value.pos || ''),
+          meaning: String(value.meaning || ''),
+          addedAt: value.addedAt || new Date().toISOString(),
+        };
+        added += 1;
+      });
+    });
+    return added;
+  }
+
+  function pickJsonFile(onChapters) {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json,application/json';
+    input.style.display = 'none';
+    document.body.appendChild(input);
+    input.addEventListener('change', () => {
+      const file = input.files && input.files[0];
+      if (!file) {
+        input.remove();
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        const chapters = parseImportPayload(String(reader.result || ''));
+        if (chapters) onChapters(chapters);
+        input.remove();
+      };
+      reader.readAsText(file);
+    });
+    input.click();
   }
 
   // 只在词汇卡片页启用，避免影响站点其它页面
@@ -528,11 +662,6 @@
         font-size: .78rem; color: #576574;
       }
       .vb-tools-note { flex: 1; color: #95a5a6; font-size: .72rem; }
-      .vb-mini {
-        border: 1px solid #dfe6e9; background: #fff; color: #2c3e50;
-        font-size: .74rem; padding: 3px 8px; border-radius: 7px; cursor: pointer;
-      }
-      .vb-mini:hover { border-color: #3498db; color: #3498db; }
       .vb-list { flex: 1; overflow-y: auto; padding: 6px 10px; }
       .vb-row {
         display: flex; align-items: flex-start; gap: 8px;
@@ -563,15 +692,6 @@
       }
       .vb-foot .vb-mini { flex: 1; padding: 6px 8px; }
       .vb-foot .vb-danger:hover { border-color: #e74c3c; color: #e74c3c; }
-      .vb-toast {
-        position: fixed; left: 50%; bottom: 108px; z-index: 1100;
-        transform: translate(-50%, 12px);
-        max-width: 80vw; padding: 9px 18px; border-radius: 20px;
-        background: rgba(44, 62, 80, .92); color: #fff;
-        font: .84rem/1.4 'Segoe UI', system-ui, sans-serif;
-        opacity: 0; pointer-events: none; transition: opacity .22s, transform .22s;
-      }
-      .vb-toast.show { opacity: 1; transform: translate(-50%, 0); }
       @media (max-width: 768px) {
         .vb-topbar { top: 56px; margin-top: 0; }
         .vb-filter .vb-theme-btn { margin-left: 0; }
@@ -621,45 +741,23 @@
         <button type="button" id="vbClose" title="关闭">✕</button>
       </div>
       <div class="vb-tools">
-        <span class="vb-tools-note">已认识的词在各筛选中灰显</span>
-        <button type="button" class="vb-mini" id="vbExport" title="导出全部章节的 JSON 状态">导出</button>
-        <button type="button" class="vb-mini" id="vbImport" title="从 JSON 文件合并导入">导入</button>
+        <span class="vb-tools-note">已认识的词在各筛选中灰显 · 导出/导入见刷词页</span>
       </div>
       <div class="vb-list" id="vbList"></div>
       <div class="vb-foot">
-        <button type="button" class="vb-mini" id="vbCopy">复制 JSON</button>
         <button type="button" class="vb-mini vb-danger" id="vbClear">清空本章</button>
       </div>
     `;
 
-    const toast = document.createElement('div');
-    toast.className = 'vb-toast';
-
-    const fileInput = document.createElement('input');
-    fileInput.type = 'file';
-    fileInput.accept = '.json,application/json';
-    fileInput.style.display = 'none';
-
-    document.body.append(launcher, panel, toast, fileInput);
+    document.body.append(launcher, panel);
 
     const els = {
       badge: launcher.querySelector('#vbBadge'),
       sub: panel.querySelector('#vbSub'),
       list: panel.querySelector('#vbList'),
       close: panel.querySelector('#vbClose'),
-      exportBtn: panel.querySelector('#vbExport'),
-      importBtn: panel.querySelector('#vbImport'),
-      copyBtn: panel.querySelector('#vbCopy'),
       clearBtn: panel.querySelector('#vbClear'),
     };
-
-    let toastTimer = null;
-    function showToast(text) {
-      toast.textContent = text;
-      toast.classList.add('show');
-      clearTimeout(toastTimer);
-      toastTimer = setTimeout(() => toast.classList.remove('show'), 1800);
-    }
 
     function esc(value) {
       return String(value == null ? '' : value)
@@ -840,96 +938,7 @@
       }
     });
 
-    // ===================== 导出 / 导入 =====================
-    function buildExport() {
-      const titles = {};
-      document.querySelectorAll('#mobileChapterSelect option').forEach((opt) => {
-        titles[opt.value] = opt.textContent.trim();
-      });
-      return {
-        app: 'ielts-vocab-tracker',
-        version: 1,
-        exportedAt: new Date().toISOString(),
-        chapterTitles: titles,
-        chapters: store.chapters,
-      };
-    }
-
-    function downloadJson() {
-      const json = JSON.stringify(buildExport(), null, 2);
-      const blob = new Blob([json], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      const d = new Date();
-      const stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
-      a.href = url;
-      a.download = `ielts-vocab-tracker-${stamp}.json`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 2000);
-      showToast('掌握度状态已导出');
-    }
-
-    async function copyJson() {
-      const json = JSON.stringify(buildExport(), null, 2);
-      try {
-        await navigator.clipboard.writeText(json);
-        showToast('已复制到剪贴板');
-      } catch (e) {
-        showToast('复制失败，请改用「导出」');
-      }
-    }
-
-    function importJson(text) {
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch (e) {
-        showToast('导入失败：不是有效的 JSON');
-        return;
-      }
-      if (!data || typeof data !== 'object' || !data.chapters || typeof data.chapters !== 'object') {
-        showToast('导入失败：缺少 chapters 字段');
-        return;
-      }
-      let added = 0;
-      Object.keys(data.chapters).forEach((chapterId) => {
-        const words = data.chapters[chapterId];
-        if (!words || typeof words !== 'object') return;
-        if (!store.chapters[chapterId]) store.chapters[chapterId] = {};
-        Object.keys(words).forEach((key) => {
-          const value = words[key];
-          if (!value || typeof value !== 'object') return;
-          if (store.chapters[chapterId][key]) return;
-          store.chapters[chapterId][key] = {
-            word: String(value.word || key),
-            pos: String(value.pos || ''),
-            meaning: String(value.meaning || ''),
-            addedAt: value.addedAt || new Date().toISOString(),
-          };
-          added += 1;
-        });
-      });
-      writeStore(store);
-      applyFilter();
-      renderPanel();
-      showToast(added ? `导入完成，新增 ${added} 个单词` : '导入完成，没有新增单词');
-    }
-
-    els.exportBtn.addEventListener('click', downloadJson);
-    els.copyBtn.addEventListener('click', copyJson);
-    els.importBtn.addEventListener('click', () => fileInput.click());
-
-    fileInput.addEventListener('change', () => {
-      const file = fileInput.files && fileInput.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = () => importJson(String(reader.result || ''));
-      reader.readAsText(file);
-      fileInput.value = '';
-    });
-
+    // ===================== 清空本章 =====================
     els.clearBtn.addEventListener('click', () => {
       const chapterId = getChapterId();
       const count = bagCount(chapterId);
@@ -1028,6 +1037,18 @@
     .vb-overall .vb-progress-meta strong { color: var(--text, #2c3e50); }
     .vb-overall .vb-progress-track { height: 8px; background: var(--border, #e3e8ec); }
     .vb-overall .vb-progress-fill { background: linear-gradient(90deg, var(--accent, #3b82f6), #8b5cf6); }
+    .vb-overall-actions {
+      display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+      margin-top: 10px; padding-top: 8px;
+      border-top: 1px solid var(--border, #eef1f4);
+    }
+    .vb-overall-note { flex: 1; min-width: 150px; font-size: .72rem; color: var(--text-secondary, #7f8c8d); }
+    .vb-overall .vb-mini {
+      background: transparent;
+      border-color: var(--border, #dfe6e9);
+      color: var(--text-secondary, #576574);
+    }
+    .vb-overall .vb-mini:hover { border-color: var(--accent, #3498db); color: var(--accent, #3498db); }
   `;
 
   function bootOverview() {
@@ -1046,6 +1067,16 @@
     wrap.className = 'vb-overall';
     wrap.id = 'vbOverall';
     wrap.appendChild(bar.el);
+
+    const actions = document.createElement('div');
+    actions.className = 'vb-overall-actions';
+    actions.innerHTML = `
+      <span class="vb-overall-note">数据只存本机 · 换设备用 JSON 迁移</span>
+      <button type="button" class="vb-mini" id="vbExport" title="导出全部章节的已认识状态">导出</button>
+      <button type="button" class="vb-mini" id="vbImport" title="从 JSON 文件合并导入">导入</button>
+      <button type="button" class="vb-mini" id="vbCopy" title="复制全部章节的 JSON">复制 JSON</button>
+    `;
+    wrap.appendChild(actions);
     anchor.insertAdjacentElement('afterend', wrap);
 
     function render() {
@@ -1061,6 +1092,26 @@
       }
       bar.update(known, total);
     }
+
+    actions.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[id]');
+      if (!btn) return;
+      if (btn.id === 'vbExport') {
+        downloadStoreJson(readStore().chapters);
+      } else if (btn.id === 'vbCopy') {
+        copyStoreJson(readStore().chapters);
+      } else if (btn.id === 'vbImport') {
+        pickJsonFile((imported) => {
+          const data = readStore();
+          const added = mergeChapters(data.chapters, imported);
+          if (added) {
+            writeStore(data);
+            render();
+          }
+          showToast(added ? `导入完成，新增 ${added} 个单词` : '导入完成，没有新增单词');
+        });
+      }
+    });
 
     render();
     syncTotalsFromCache().then((changed) => {
