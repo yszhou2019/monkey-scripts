@@ -6,16 +6,17 @@ A personal collection of Tampermonkey / Violentmonkey userscripts.
 
 ## Scripts
 
-### XHS Batch Uncollect — Xiaohongshu Bulk Favorite Remover
+### XHS Batch Actions — Unified Xiaohongshu Batch Toolkit
 
-Mass-remove favorites (取消收藏) on the Xiaohongshu (RED / 小红书) **web app** without
-opening every note one by one. Mark cards straight from the list page, then
-batch-uncollect them in the background through the internal API.
+One userscript, one marking workflow, three batch actions: **batch export** (read-only),
+**batch uncollect** (write) and **batch unlike** (write, placeholder). They share the same
+card selection, queue, speed control and panel — only the action differs. Every write
+action asks for confirmation before anything is executed.
 
-![The floating control panel at the bottom-right of the Xiaohongshu favorites page, with buttons for mark mode, select all loaded, run, pause, clear, and a speed selector. Marked cards are outlined with a red check badge.](images/script-xhs.png)
+![The unified floating panel at the bottom-right of the Xiaohongshu favorites page, with the action dropdown set to read-only export. Note covers and text are pixelated for privacy; no account information is shown.](images/script-xhs-batch-actions.png)
 
 - Docs: [English](xhs/README.md) · [中文](xhs/README.zh.md)
-- Install: [`xhs/xhs-batch-uncollect.user.js`](xhs/xhs-batch-uncollect.user.js)
+- Install: [`xhs/xhs-batch-actions.user.js`](xhs/xhs-batch-actions.user.js)
 
 ---
 

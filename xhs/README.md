@@ -1,108 +1,172 @@
-# XHS Batch Uncollect — Xiaohongshu Bulk Favorite Remover
+# XHS Batch Actions — Unified Xiaohongshu Batch Toolkit
 
-A Tampermonkey / Violentmonkey userscript that mass-removes favorites (取消收藏)
-on the Xiaohongshu (RED / 小红书) **web app** without opening every note one by one.
+One userscript, one marking workflow, three batch actions for Xiaohongshu (RED / 小红书).
+They share the same card selection, queue, speed control and floating panel — only the
+action differs.
 
-> Works on the web version (`xiaohongshu.com`), not the mobile app.
+> Works on the web app (`xiaohongshu.com`) — the 笔记 / 收藏 / 点赞 tabs.
+> **Every write action asks for confirmation before anything is executed.**
 
----
-
-## Why this exists
-
-The web app makes you open each note, open the detail modal, and click the star to
-remove a favorite. With hundreds of saved notes that is painful. This script lets you
-**mark** notes straight from the list, then auto-uncollects them in the background
-through Xiaohongshu's official internal API.
+![The unified floating panel at the bottom-right of the Xiaohongshu favorites page, with the action dropdown set to read-only export. Note covers and text are pixelated for privacy; no account information is shown.](../images/script-xhs-batch-actions.png)
 
 ---
 
-## How it works
+## Actions
 
-1. On the **first run** it opens exactly **one** note and performs a real "uncollect",
-   capturing the anti-bot signature headers (`X-s`, `X-t`, `X-S-Common`, …).
-2. Those signature headers are bound only to the **URL path**, not the request body,
-   and the timestamp is **not** expiry-checked — so a single capture is reused for every
-   note. (Verified against the live site, Nov 2026.)
-3. After that, every removal is a direct
-   `POST https://edith.xiaohongshu.com/api/sns/web/v1/note/uncollect`
-   **with no modal opened** — fast and silent.
-4. The captured signature is cached in `localStorage` (24 h) so future sessions skip
-   the one-time capture entirely.
+| Action | Type | Status | What it does |
+| --- | --- | --- | --- |
+| **批量导出文本** (Batch export) | read-only | ready | Dumps each note's original title, body, author, date, hashtags and link to a local file. |
+| **批量取消收藏** (Batch uncollect) | write | ready | Removes favorites through the internal API, without opening a modal per note. |
+| **批量取消点赞** (Batch unlike) | write | placeholder | Reserved entry, not implemented yet; the run button is disabled. |
 
-## Screenshot
+### Confirmation gate (all write actions)
 
-![The floating control panel at the bottom-right of the Xiaohongshu favorites page, with buttons for mark mode, select all loaded, run, pause, clear, and a speed selector. Marked cards are outlined with a red check badge.](../images/script-xhs.png)
+Before a write action dispatches anything, a dialog shows the action name, how many notes
+are marked, and that the change is irreversible. Cancelling means **zero requests sent**
+and the selection stays untouched (verified against the live site). The first uncollect
+run also opens one note to capture the API signature — that note is consumed too, and the
+dialog says so explicitly.
+
+When a write action is selected the panel border turns red and the run button is labelled
+with that action's name. The safe workflow is **export first, then uncollect**, because
+successfully uncollected notes leave the queue.
+
+---
+
+## Why a single script
+
+The two earlier scripts (bulk uncollect and note exporter) duplicated the whole marking
+engine — click interception, badges, MutationObserver re-marking, speed tiers, storage.
+Merging removes that duplication while keeping destructive actions clearly separated from
+the read-only one at the UI level. A third action can now be added without another copy of
+the panel.
+
+---
+
+## How marking works (shared)
+
+1. Toggle **开启标注模式** and click cards to mark them, or use **全选当前已加载**.
+   Scrolling while marking is fine.
+2. Each mark stores `{ noteId, tokenized link, card title }` in localStorage. The
+   waterfall list is virtualized and recycles scrolled-away cards (measured 63 → 38), so
+   the batch never depends on a card still being in the DOM.
+3. Choose an action, pick a speed, press **开始导出** / **开始取消收藏**. Pause, clear
+   marks and clear results are independent.
+4. Red `·` badge = pending, green `✓` = processed.
 
 ---
 
 ## Install
 
-1. Install a userscript manager in your browser:
-   - [Tampermonkey](https://www.tampermonkey.net/) (Chrome / Edge / Firefox / Safari)
-   - or [Violentmonkey](https://violentmonkey.github.io/).
-2. Add `xhs-batch-uncollect.user.js`:
-   - **Tampermonkey** → Dashboard → Utilities → *Import* (pick the file), **or**
-   - create a new script, paste the file contents, and save.
-3. Go to your logged-in Xiaohongshu **favorites** page. A floating panel appears.
-
-> The diagnostic companion `xhs-probe.user.js` is **optional** — see below.
+1. Install [Tampermonkey](https://www.tampermonkey.net/) or
+   [Violentmonkey](https://violentmonkey.github.io/).
+2. Import `xhs-batch-actions.user.js` (Tampermonkey → Utilities → Import), or paste it
+   into a new script.
+3. Open your logged-in Xiaohongshu profile → 收藏 or 点赞. One floating panel appears.
 
 ---
 
 ## Usage
 
-A floating panel shows up at the **bottom-right** of the page:
-
-| Button | What it does |
+| Control | What it does |
 | --- | --- |
-| **开启标注模式** (Mark mode) | Toggle, then click any card to mark/unmark it for removal. Scroll freely while marking. |
-| **全选当前已加载** (Select all loaded) | Mark every currently loaded card. Scroll down to load more, then click again to add them. |
-| **开始执行** (Run) | Start removing. First run opens 1 note to grab the signature, then switches to API mode (no modals). |
-| **暂停** (Pause) | Pause / resume the run. |
-| **清空标注** (Clear) | Remove all marks. |
-| **速度** (Speed) | Per-note interval: **Slow** 2.5–5s · **Normal** 1.5–3s · **Fast** 0.8–1.6s. |
-
-- Marked cards show a **red ✓** outline/badge.
-- Successfully removed cards flip to a **green ✓**.
-- Your marks are stored in `localStorage`, so reloading the page keeps them.
+| **动作** (Action) | Select export / uncollect / unlike. Switching to a write action turns the panel red. |
+| **开启标注模式** | Toggle, then click cards to mark / unmark. |
+| **全选当前已加载** | Mark every loaded card; scroll down and click again to append. |
+| **开始导出 / 开始取消收藏** | Run the selected action. Write actions confirm first. |
+| **暂停** | Pause / resume. |
+| **仅导出已抓取** | Download everything in the export cache, including earlier batches. |
+| **清空标注** / **清空结果** | Clear the selection or the cached content, independently. |
+| **速度** | Slow 2.2–4s · Normal 1.2–2.4s · Fast 0.6–1.2s. |
+| **格式** | Markdown (default) / TXT / JSON / CSV; only enabled for the export action. |
 
 ---
 
-## Anti-bot / risk notes
+## Action 1 — Batch export (read-only)
 
-- **Stay logged in.** The request must carry your cookies (`withCredentials = true`),
-  otherwise the API returns `-101 未登录`.
-- Built-in pacing + an automatic rest every **100** notes.
-- If risk-control codes are hit (`300031`, `300012`, `4601`, …), the script auto-cools
-  for **60 s** and retries a few times, then **stops and keeps the remaining marks** so
-  you can resume later.
-- For very large lists, prefer **Slow**.
+Each marked note is opened in a hidden same-origin iframe at
+`/explore/{noteId}?xsec_token=…`, which renders `#detail-title`, `#detail-desc`,
+`#detail-desc a.tag`, `.author`, `.date`. The script reads them and removes the iframe
+immediately. No modal, no page reload, no scrolling, no write request.
+
+Formats (every record is headed by the **original post title**, never an id or index):
+
+- **Markdown** (default) — `# {title}`, then author, date, hashtags, link and full body,
+  separated by `---`.
+- **TXT** — plain text with one header block per note.
+- **JSON** — `{ exportedAt, count, notes: [{ title, author, date, tags, desc, noteId, url }] }`.
+- **CSV** — `title,author,date,tags,desc,noteId,url` with a UTF-8 BOM; quotes and newlines
+  escaped.
+
+File: `xhs-notes-YYYYMMDD-HHMMSS.{ext}`, saved to your browser's download folder.
 
 ---
 
-## Files in this folder
+## Action 2 — Batch uncollect (write)
 
-| File | Purpose |
+- Endpoint `POST https://edith.xiaohongshu.com/api/sns/web/v1/note/uncollect`, body
+  `{"note_ids":"<id>"}`, `withCredentials = true` (otherwise `-101 未登录`).
+- Signature headers (`X-s`, `X-t`, `X-S-Common`, …) are captured from one genuine
+  uncollect request. They bind to the URL path rather than the body and the timestamp is
+  not expiry-checked, so one capture is reused for every note and cached for 24 h.
+- Risk-control codes `300031 / 300012 / 4601` trigger a 60 s cooldown and a few retries,
+  then the run stops while keeping the remaining marks.
+- Signature capture needs at least one marked card currently rendered in the list. If all
+  of them were recycled by the virtual list, scroll back to one of them first; the script
+  will tell you instead of guessing.
+
+---
+
+## Action 3 — Batch unlike (placeholder)
+
+Not implemented. The option is visible, the run button is disabled, and calling the
+dispatcher shows a notice. The script carries a `runUnlike` TODO block describing what is
+needed: find the real unlike endpoint, capture a signature bound to **that** path (do not
+reuse the uncollect signature), reuse the queue / pacing / risk handling, set
+`ACTIONS.unlike.implemented = true`, and above all **keep the confirmation gate**.
+
+---
+
+## Where your data lives
+
+| Stage | Storage |
 | --- | --- |
-| `xhs-batch-uncollect.user.js` | The main userscript. Install this. |
-| `xhs-probe.user.js` | Temporary diagnostic tool — dumps live DOM + network requests to the console. Only for debugging after a site redesign. |
-| `cdp.mjs` | Dev/QA harness (Node + Chrome DevTools Protocol) used to drive a headless Chrome for testing. Not needed for normal use. |
-| `README.md` | This file (English). |
-| `README.zh.md` | 中文说明。 |
+| Selection (id + tokenized link + card title) | `localStorage['xhs_batch_marks_v1']` |
+| Exported content (title, body, …) | `localStorage['xhs_batch_results_v1']`, written after every note |
+| Signature headers | `localStorage['xhs_batch_sig_v1']` |
+| Exported file | **Disk** — a real download, e.g. `xhs-notes-20261111-004627.md` |
+| Hidden iframe | Memory only, removed right after reading |
+
+- localStorage survives reloads and enables resume: export skips notes already fetched.
+- It has a ~5 MB quota and is browser-local. **The downloaded file is the durable copy.**
+- Exporting does not clear the cache; use **清空结果** when done.
+
+---
+
+## Reliability & limits
+
+- Failed notes stay marked and are retried once automatically.
+- Automatic rest every 60 notes (export) / 100 notes (uncollect), with randomized intervals.
+- Prefer **Slow** for large batches.
+- `xsec_token` links can go stale — reload the list and re-mark if a note keeps failing.
+- The read-only action never calls a write API and never clicks a collect / like button.
 
 ---
 
 ## Compatibility / tweaking
 
-- Match rule: `https://www.xiaohongshu.com/*` (the probe also matches `rednote.com`).
-- Key selectors live in the `SEL` / `CFG` constants near the top:
-  `section.note-item`, `a.cover`, `.note-detail-mask`, `.collect-wrapper`, `.close-circle`.
-  If Xiaohongshu changes its markup and the script stops finding cards/buttons, update
-  those constants (or run the probe and send me the console output).
+- Match rule: `https://www.xiaohongshu.com/*`.
+- `ACTIONS` at the top defines the three actions and their `write` / `implemented` flags;
+  the confirmation gate reads `write`, so future write actions inherit it automatically.
+- Key selectors in `SEL`: `section.note-item`, `a.cover`, `.title`, `#detail-title`,
+  `#detail-desc`, `#detail-desc a.tag`, `.author-wrapper .author`, `.date`,
+  `.note-detail-mask`, `.collect-wrapper`, `.close-circle`.
+  If the site changes its markup, re-derive these from the live DOM in DevTools.
 
 ---
 
 ## Disclaimer
 
-For **personal use only**. Use at your own risk; bulk operations may trigger rate limits
-or temporary restrictions on your account.
+For **personal use only**. Use at your own risk; bulk operations may trigger rate limits or
+temporary restrictions. Respect the original authors and Xiaohongshu's terms when reusing
+exported text.
