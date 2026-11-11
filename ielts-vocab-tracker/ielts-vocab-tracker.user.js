@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         雅思词汇掌握度助手 · IELTS Vocab Tracker
 // @namespace    https://www.leonwang.cc/ielts-vocab/
-// @version      2.6.0
-// @description  为 leonwang.cc 雅思词汇卡片增加“认识”标记、三档筛选、本单元与全站熟悉度进度条、深色主题；单词详情默认隐藏中文、只留英文例句，状态可导出 / 导入 JSON。
+// @version      2.7.0
+// @description  为 leonwang.cc 雅思词汇卡片增加“认识”与“发音待练”标记、四档筛选、本单元与全站熟悉度进度条、深色主题；单词详情默认隐藏中文、只留英文例句，状态可导出 / 导入 JSON。
 // @match        https://www.leonwang.cc/ielts-vocab/*
 // @run-at       document-start
 // @grant        none
@@ -58,6 +58,11 @@
     html[data-vb-theme="dark"] .card.vb-known .pos { background: #273038; color: #7f8c96; }
     html[data-vb-theme="dark"] .card.vb-known .meaning { color: #8d99a3; }
     html[data-vb-theme="dark"] .card .vb-mark-btn.on { background: #1e3f2c; color: #5fd394; }
+
+    html[data-vb-theme="dark"] .card.vb-pron { background: #2a2517; border-color: #3e3520; box-shadow: none; }
+    html[data-vb-theme="dark"] .card.vb-pron:hover { box-shadow: 0 6px 16px rgba(0, 0, 0, .35); }
+    html[data-vb-theme="dark"] .card.vb-pron .pos { background: #3a3119; color: #d8b767; }
+    html[data-vb-theme="dark"] .card .vb-pron-btn.on { background: #3a3119; color: #f0c96b; }
 
     html[data-vb-theme="dark"] .overlay { background: rgba(0, 0, 0, .72); }
     html[data-vb-theme="dark"] .overlay-content {
@@ -126,6 +131,7 @@
     html[data-vb-theme="dark"] .vb-row { border-bottom-color: #242d35; }
     html[data-vb-theme="dark"] .vb-row-word { color: #e3e7ea; }
     html[data-vb-theme="dark"] .vb-row-pos { color: #7cc4f0; }
+    html[data-vb-theme="dark"] .vb-row-tag { background: #3a3119; color: #e7c37a; }
     html[data-vb-theme="dark"] .vb-row-meaning { color: #aab6bf; }
     html[data-vb-theme="dark"] .vb-row-btn { background: #1f282f; border-color: #303a44; color: #93a0aa; }
     html[data-vb-theme="dark"] .vb-empty { color: #8b98a3; }
@@ -458,6 +464,11 @@
     return data.chapters;
   }
 
+  // 旧版本没有 status 字段，一律视为“已认识”
+  function entryStatus(entry) {
+    return entry && entry.status === 'pron' ? 'pron' : 'known';
+  }
+
   function mergeChapters(target, source) {
     let added = 0;
     Object.keys(source).forEach((chapterId) => {
@@ -473,6 +484,7 @@
           pos: String(value.pos || ''),
           meaning: String(value.meaning || ''),
           addedAt: value.addedAt || new Date().toISOString(),
+          status: entryStatus(value),
         };
         added += 1;
       });
@@ -575,9 +587,12 @@
       .vb-filter button.active { background: #3498db; border-color: #3498db; color: #fff; }
       .vb-filter button.active span { color: rgba(255, 255, 255, .85); }
 
-      .card .vb-mark-btn { opacity: .3; }
-      .card:hover .vb-mark-btn { opacity: 1; }
+      .card .vb-mark-btn,
+      .card .vb-pron-btn { opacity: .3; }
+      .card:hover .vb-mark-btn,
+      .card:hover .vb-pron-btn { opacity: 1; }
       .card .vb-mark-btn.on { opacity: 1; background: #d5f0de; color: #1e8449; }
+      .card .vb-pron-btn.on { opacity: 1; background: #fcf0d4; color: #b7791f; }
       .vb-hidden { display: none !important; }
 
       .overlay-content .vb-cn-toggle {
@@ -601,6 +616,10 @@
       .card.vb-known .pos { background: #e1e6ea; color: #8b99a3; }
       .card.vb-known .tag { filter: grayscale(1); opacity: .7; }
       .card.vb-known .meaning { color: #8b98a2; }
+
+      .card.vb-pron { background: #fdf8ec; border-color: #efe4cc; box-shadow: none; }
+      .card.vb-pron:hover { box-shadow: 0 6px 16px rgba(183, 121, 31, .12); }
+      .card.vb-pron .pos { background: #f7ecd5; color: #a2793a; }
 
       .vb-grid-hint {
         grid-column: 1 / -1;
@@ -675,6 +694,11 @@
       .vb-row-main { flex: 1; min-width: 0; }
       .vb-row-word { font-weight: 700; color: #2c3e50; font-size: .92rem; }
       .vb-row-pos { font-weight: 500; color: #3498db; font-size: .7rem; margin-left: 4px; }
+      .vb-row-tag {
+        margin-left: 6px; padding: 1px 7px; border-radius: 999px;
+        background: #fcf0d4; color: #b7791f;
+        font-size: .68rem; font-weight: 600; white-space: nowrap;
+      }
       .vb-row-meaning {
         color: #576574; font-size: .78rem; line-height: 1.45; margin-top: 2px;
         display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
@@ -713,6 +737,7 @@
       <button type="button" data-filter="all" class="active">全部 <span>0</span></button>
       <button type="button" data-filter="unknown">不认识 <span>0</span></button>
       <button type="button" data-filter="known">认识 <span>0</span></button>
+      <button type="button" data-filter="pron">发音 <span>0</span></button>
     `;
 
     themeBtn = document.createElement('button');
@@ -733,19 +758,19 @@
     const launcher = document.createElement('button');
     launcher.type = 'button';
     launcher.className = 'vb-launcher';
-    launcher.title = '已认识的单词（掌握度追踪）· 可拖动位置';
+    launcher.title = '已标记的单词（掌握度追踪）· 可拖动位置';
     launcher.innerHTML = '✅<span class="vb-badge" id="vbBadge">0</span>';
 
     const panel = document.createElement('div');
     panel.className = 'vb-panel';
     panel.innerHTML = `
       <div class="vb-head">
-        <strong>✅ 已认识</strong>
+        <strong>✅ 已标记</strong>
         <span class="vb-sub" id="vbSub"></span>
         <button type="button" id="vbClose" title="关闭">✕</button>
       </div>
       <div class="vb-tools">
-        <span class="vb-tools-note">已认识的词在各筛选中灰显 · 导出/导入见刷词页</span>
+        <span class="vb-tools-note">灰显 = 已认识 · 标黄 = 发音待练 · 导出/导入见刷词页</span>
       </div>
       <div class="vb-list" id="vbList"></div>
       <div class="vb-foot">
@@ -900,67 +925,91 @@
       return el ? el.textContent.trim() : '';
     }
 
-    function ensureMarkButton(card, isKnown) {
+    function ensureMarkButtons(card, status) {
       const actions = card.querySelector('.card-actions');
       if (!actions) return;
-      let btn = actions.querySelector('.vb-mark-btn');
-      if (!btn) {
-        btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'btn-icon vb-mark-btn';
-        btn.textContent = '✓';
-        btn.addEventListener('click', (e) => {
+      let knownBtn = actions.querySelector('.vb-mark-btn');
+      let pronBtn = actions.querySelector('.vb-pron-btn');
+      if (!knownBtn) {
+        knownBtn = document.createElement('button');
+        knownBtn.type = 'button';
+        knownBtn.className = 'btn-icon vb-mark-btn';
+        knownBtn.textContent = '✓';
+        knownBtn.addEventListener('click', (e) => {
           e.preventDefault();
           e.stopPropagation();
-          toggleKnown(card);
+          setWordStatus(card, 'known');
         });
-        actions.appendChild(btn);
       }
-      btn.classList.toggle('on', isKnown);
-      btn.title = isKnown ? '取消“认识”标记' : '标记为认识（卡片灰显，不再重点展示）';
+      if (!pronBtn) {
+        pronBtn = document.createElement('button');
+        pronBtn.type = 'button';
+        pronBtn.className = 'btn-icon vb-pron-btn';
+        pronBtn.textContent = '🎤';
+        pronBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setWordStatus(card, 'pron');
+        });
+      }
+      // 站点自带的朗读按钮在前：朗读 → 音 → ✓
+      actions.appendChild(pronBtn);
+      actions.appendChild(knownBtn);
+      knownBtn.classList.toggle('on', status === 'known');
+      pronBtn.classList.toggle('on', status === 'pron');
+      knownBtn.title = status === 'known' ? '取消“认识”标记' : '标记为认识（卡片灰显，不再重点展示）';
+      pronBtn.title = status === 'pron' ? '取消“发音待练”标记' : '标记为发音待练（卡片标黄，仍需练发音）';
     }
 
-    function toggleKnown(card) {
+    function setWordStatus(card, status) {
       const word = cardWord(card);
       if (!word) return;
       const chapterId = getChapterId();
       if (!store.chapters[chapterId]) store.chapters[chapterId] = {};
       const bag = store.chapters[chapterId];
+      const prev = bag[word];
+      const current = prev ? entryStatus(prev) : null;
 
-      if (bag[word]) {
+      if (current === status) {
         delete bag[word];
-        showToast(`已取消标记：${word}`);
+        showToast(status === 'known' ? `已取消标记：${word}` : `已取消发音标记：${word}`);
       } else {
         const posEl = card.querySelector('.pos');
         const meaningEl = card.querySelector('.meaning');
         bag[word] = {
           word,
-          pos: posEl ? posEl.textContent.trim() : '',
-          meaning: meaningEl ? meaningEl.textContent.trim() : '',
-          addedAt: new Date().toISOString(),
+          pos: (prev && prev.pos) || (posEl ? posEl.textContent.trim() : ''),
+          meaning: (prev && prev.meaning) || (meaningEl ? meaningEl.textContent.trim() : ''),
+          addedAt: (prev && prev.addedAt) || new Date().toISOString(),
+          status,
         };
-        showToast(`已标记为认识：${word}`);
+        showToast(status === 'known' ? `已标记为认识：${word}` : `已标记为发音待练：${word}`);
       }
       writeStore(store);
       applyFilter();
       renderPanel();
     }
 
-    function updateFilterCounts(total, knownCount) {
+    function updateFilterCounts(total, knownCount, pronCount) {
       filterBar.querySelectorAll('button[data-filter]').forEach((btn) => {
         const filter = btn.dataset.filter;
-        const count = filter === 'all' ? total : filter === 'unknown' ? total - knownCount : knownCount;
+        let count = knownCount;
+        if (filter === 'all') count = total;
+        else if (filter === 'unknown') count = Math.max(0, total - knownCount - pronCount);
+        else if (filter === 'pron') count = pronCount;
         btn.querySelector('span').textContent = count;
       });
     }
 
-    function updateGridHint(total, knownCount) {
+    function updateGridHint(total, knownCount, pronCount) {
       let hint = grid.querySelector('.vb-grid-hint');
       let text = '';
-      if (currentFilter === 'unknown' && total > 0 && total - knownCount === 0) {
-        text = '本章所有单词都已标记为认识。切换上方筛选可以查看它们。';
+      if (currentFilter === 'unknown' && total > 0 && total - knownCount - pronCount === 0) {
+        text = '本章所有单词都已标记。切换上方筛选可以查看它们。';
       } else if (currentFilter === 'known' && knownCount === 0) {
-        text = '本章还没有标记任何单词。切到「全部」后可点卡片上的 ✓ 标记为认识。';
+        text = '本章还没有标记为认识的单词。切到「全部」后可点卡片上的 ✓。';
+      } else if (currentFilter === 'pron' && pronCount === 0) {
+        text = '本章还没有「发音待练」的单词。切到「全部」后可点卡片上的 🎤。';
       }
 
       if (!text) {
@@ -980,22 +1029,28 @@
       const bag = getBag(chapterId);
       const cards = Array.from(grid.querySelectorAll('.card'));
       let knownCount = 0;
+      let pronCount = 0;
 
       cards.forEach((card) => {
         const word = cardWord(card);
         if (!word) return;
-        const isKnown = !!bag[word];
-        if (isKnown) knownCount += 1;
-        card.classList.toggle('vb-known', isKnown);
+        const entry = bag[word];
+        const status = entry ? entryStatus(entry) : null;
+        if (status === 'known') knownCount += 1;
+        if (status === 'pron') pronCount += 1;
+        card.classList.toggle('vb-known', status === 'known');
+        card.classList.toggle('vb-pron', status === 'pron');
         card.classList.toggle('vb-hidden',
-          (currentFilter === 'unknown' && isKnown) || (currentFilter === 'known' && !isKnown));
-        ensureMarkButton(card, isKnown);
+          (currentFilter === 'unknown' && !!entry)
+          || (currentFilter === 'known' && status !== 'known')
+          || (currentFilter === 'pron' && status !== 'pron'));
+        ensureMarkButtons(card, status);
       });
 
-      updateFilterCounts(cards.length, knownCount);
+      updateFilterCounts(cards.length, knownCount, pronCount);
       progress.update(knownCount, cards.length);
       recordChapterTotal(chapterId, cards.length);
-      updateGridHint(cards.length, knownCount);
+      updateGridHint(cards.length, knownCount, pronCount);
     }
 
     // ===================== 面板 =====================
@@ -1006,19 +1061,19 @@
         String(a.addedAt || '').localeCompare(String(b.addedAt || ''))
       );
 
-      els.sub.textContent = `${chapterTitle(chapterId)} · ${entries.length} 个已认识`;
+      els.sub.textContent = `${chapterTitle(chapterId)} · ${entries.length} 个已标记`;
       els.badge.textContent = entries.length;
       els.badge.style.display = entries.length ? '' : 'none';
 
       if (entries.length === 0) {
-        els.list.innerHTML = '<div class="vb-empty">本章还没有标记任何单词。<br>点卡片上的 ✓ 一键标记为认识。</div>';
+        els.list.innerHTML = '<div class="vb-empty">本章还没有标记任何单词。<br>点卡片上的 ✓ 标记为认识，点 🎤 标记为发音待练。</div>';
         return;
       }
 
       els.list.innerHTML = entries.map((entry) => `
         <div class="vb-row">
           <div class="vb-row-main">
-            <div class="vb-row-word">${esc(entry.word)}${entry.pos ? `<span class="vb-row-pos">${esc(entry.pos)}</span>` : ''}</div>
+            <div class="vb-row-word">${esc(entry.word)}${entry.pos ? `<span class="vb-row-pos">${esc(entry.pos)}</span>` : ''}${entryStatus(entry) === 'pron' ? '<span class="vb-row-tag">🎤 发音待练</span>' : ''}</div>
             ${entry.meaning ? `<div class="vb-row-meaning">${esc(entry.meaning)}</div>` : ''}
           </div>
           <button type="button" class="vb-row-btn" data-vb-remove="${esc(entry.word)}">取消</button>
@@ -1049,7 +1104,7 @@
         showToast('本章还没有标记任何单词');
         return;
       }
-      if (!confirm(`确定清空「${chapterTitle(chapterId)}」的 ${count} 个“认识”标记？`)) return;
+      if (!confirm(`确定清空「${chapterTitle(chapterId)}」的 ${count} 个标记？`)) return;
       delete store.chapters[chapterId];
       writeStore(store);
       applyFilter();
@@ -1175,7 +1230,7 @@
     actions.className = 'vb-overall-actions';
     actions.innerHTML = `
       <span class="vb-overall-note">数据只存本机 · 换设备用 JSON 迁移</span>
-      <button type="button" class="vb-mini" id="vbExport" title="导出全部章节的已认识状态">导出</button>
+      <button type="button" class="vb-mini" id="vbExport" title="导出全部章节的标记状态">导出</button>
       <button type="button" class="vb-mini" id="vbImport" title="从 JSON 文件合并导入">导入</button>
       <button type="button" class="vb-mini" id="vbCopy" title="复制全部章节的 JSON">复制 JSON</button>
     `;
@@ -1190,8 +1245,12 @@
       for (let id = 1; id <= CHAPTER_COUNT; id += 1) {
         const chapterTotal = counts[id] || 0;
         total += chapterTotal;
-        const bagSize = Object.keys(chapters[id] || {}).length;
-        known += Math.min(bagSize, chapterTotal || bagSize);
+        const bag = chapters[id] || {};
+        let chapterKnown = 0;
+        Object.keys(bag).forEach((word) => {
+          if (entryStatus(bag[word]) === 'known') chapterKnown += 1;
+        });
+        known += Math.min(chapterKnown, chapterTotal || chapterKnown);
       }
       bar.update(known, total);
     }
