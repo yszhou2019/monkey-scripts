@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         雅思词汇掌握度助手 · IELTS Vocab Tracker
 // @namespace    https://www.leonwang.cc/ielts-vocab/
-// @version      2.5.0
+// @version      2.6.0
 // @description  为 leonwang.cc 雅思词汇卡片增加“认识”标记、三档筛选、本单元与全站熟悉度进度条、深色主题；单词详情默认隐藏中文、只留英文例句，状态可导出 / 导入 JSON。
 // @match        https://www.leonwang.cc/ielts-vocab/*
 // @run-at       document-start
@@ -613,13 +613,17 @@
       .vb-launcher {
         position: fixed; right: 96px; bottom: 28px; z-index: 900;
         width: 54px; height: 54px; border: none; border-radius: 50%;
-        background: #3498db; color: #fff; font-size: 1.5rem; cursor: pointer;
+        background: #3498db; color: #fff; font-size: 1.5rem; cursor: grab;
         display: flex; align-items: center; justify-content: center;
         box-shadow: 0 6px 20px rgba(52, 152, 219, .35);
         transition: transform .2s, background .2s;
+        touch-action: none;
+        user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
       }
       .vb-launcher:hover { transform: scale(1.07); }
       .vb-launcher.on { background: #2c3e50; }
+      .vb-launcher.dragging { cursor: grabbing; transform: none; transition: background .2s; }
+      .vb-launcher.dragging:hover { transform: none; }
       .vb-badge {
         position: absolute; top: -4px; right: -4px;
         min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px;
@@ -729,7 +733,7 @@
     const launcher = document.createElement('button');
     launcher.type = 'button';
     launcher.className = 'vb-launcher';
-    launcher.title = '已认识的单词（掌握度追踪）';
+    launcher.title = '已认识的单词（掌握度追踪）· 可拖动位置';
     launcher.innerHTML = '✅<span class="vb-badge" id="vbBadge">0</span>';
 
     const panel = document.createElement('div');
@@ -750,6 +754,102 @@
     `;
 
     document.body.append(launcher, panel);
+
+    // ===================== 启动按钮拖动 =====================
+    const LAUNCHER_POS_KEY = 'ielts-vocab-tracker.launcher.v1';
+    const DRAG_THRESHOLD = 5;
+
+    function readLauncherPos() {
+      try {
+        const pos = JSON.parse(localStorage.getItem(LAUNCHER_POS_KEY) || 'null');
+        if (!pos || typeof pos.left !== 'number' || typeof pos.top !== 'number') return null;
+        return pos;
+      } catch (e) {
+        return null;
+      }
+    }
+
+    function writeLauncherPos(left, top) {
+      try {
+        localStorage.setItem(LAUNCHER_POS_KEY, JSON.stringify({ left, top }));
+      } catch (e) {
+        // 隐私模式或配额用尽时忽略，按钮仍可拖动
+      }
+    }
+
+    function clampLauncher(left, top) {
+      const size = launcher.offsetWidth || 54;
+      const margin = 8;
+      const maxLeft = Math.max(margin, window.innerWidth - size - margin);
+      const maxTop = Math.max(margin, window.innerHeight - size - margin);
+      return {
+        left: Math.min(Math.max(left, margin), maxLeft),
+        top: Math.min(Math.max(top, margin), maxTop),
+      };
+    }
+
+    function placeLauncher(left, top) {
+      const pos = clampLauncher(left, top);
+      launcher.style.left = pos.left + 'px';
+      launcher.style.top = pos.top + 'px';
+      launcher.style.right = 'auto';
+      launcher.style.bottom = 'auto';
+      return pos;
+    }
+
+    const savedPos = readLauncherPos();
+    if (savedPos) placeLauncher(savedPos.left, savedPos.top);
+
+    let dragState = null;
+    let lastDragEndAt = 0;
+
+    launcher.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      const rect = launcher.getBoundingClientRect();
+      dragState = {
+        pointerId: e.pointerId,
+        startX: e.clientX,
+        startY: e.clientY,
+        offsetX: e.clientX - rect.left,
+        offsetY: e.clientY - rect.top,
+        moved: false,
+      };
+      launcher.setPointerCapture(e.pointerId);
+    });
+
+    launcher.addEventListener('pointermove', (e) => {
+      if (!dragState || e.pointerId !== dragState.pointerId) return;
+      const dx = e.clientX - dragState.startX;
+      const dy = e.clientY - dragState.startY;
+      if (!dragState.moved && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+      if (!dragState.moved) {
+        dragState.moved = true;
+        launcher.classList.add('dragging');
+      }
+      e.preventDefault();
+      placeLauncher(e.clientX - dragState.offsetX, e.clientY - dragState.offsetY);
+    });
+
+    function endLauncherDrag(e) {
+      if (!dragState || (e && e.pointerId !== dragState.pointerId)) return;
+      const moved = dragState.moved;
+      dragState = null;
+      launcher.classList.remove('dragging');
+      if (e && launcher.hasPointerCapture(e.pointerId)) launcher.releasePointerCapture(e.pointerId);
+      if (!moved) return;
+      lastDragEndAt = Date.now();
+      const pos = clampLauncher(
+        parseFloat(launcher.style.left) || 0,
+        parseFloat(launcher.style.top) || 0
+      );
+      writeLauncherPos(pos.left, pos.top);
+    }
+
+    launcher.addEventListener('pointerup', endLauncherDrag);
+    launcher.addEventListener('pointercancel', endLauncherDrag);
+    window.addEventListener('resize', () => {
+      if (launcher.style.left) placeLauncher(parseFloat(launcher.style.left), parseFloat(launcher.style.top));
+    });
 
     const els = {
       badge: launcher.querySelector('#vbBadge'),
@@ -772,7 +872,10 @@
       launcher.classList.toggle('on', open);
     }
 
-    launcher.addEventListener('click', () => setPanelOpen(!panel.classList.contains('open')));
+    launcher.addEventListener('click', () => {
+      if (Date.now() - lastDragEndAt < 300) return;
+      setPanelOpen(!panel.classList.contains('open'));
+    });
     els.close.addEventListener('click', () => setPanelOpen(false));
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && panel.classList.contains('open')) setPanelOpen(false);
