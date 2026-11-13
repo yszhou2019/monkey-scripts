@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         雅思词汇掌握度助手 · IELTS Vocab Tracker
 // @namespace    https://www.leonwang.cc/ielts-vocab/
-// @version      2.7.0
-// @description  为 leonwang.cc 雅思词汇卡片增加“认识”与“发音待练”标记、四档筛选、本单元与全站熟悉度进度条、深色主题；单词详情默认隐藏中文、只留英文例句，状态可导出 / 导入 JSON。
+// @version      2.8.0
+// @description  为 leonwang.cc 雅思词汇卡片增加可配置分组标记（默认“认识”与“发音待练”）、分组筛选、本单元与全站熟悉度进度条、深色主题；单词详情默认隐藏中文、只留英文例句，状态可导出 / 导入 JSON。
 // @match        https://www.leonwang.cc/ielts-vocab/*
 // @run-at       document-start
 // @grant        none
@@ -51,18 +51,49 @@
     html[data-vb-theme="dark"] .upload-icon-sm { color: #7f8c99; }
     html[data-vb-theme="dark"] .upload-icon-sm:hover { color: #c7d0d8; }
 
-    html[data-vb-theme="dark"] .card.vb-known { background: #202830; border-color: #2c3640; box-shadow: none; }
-    html[data-vb-theme="dark"] .card.vb-known:hover { box-shadow: 0 6px 16px rgba(0, 0, 0, .35); }
-    html[data-vb-theme="dark"] .card.vb-known .word { color: #8a97a2; }
-    html[data-vb-theme="dark"] .card.vb-known .phonetic { color: #7f8c96; }
-    html[data-vb-theme="dark"] .card.vb-known .pos { background: #273038; color: #7f8c96; }
-    html[data-vb-theme="dark"] .card.vb-known .meaning { color: #8d99a3; }
-    html[data-vb-theme="dark"] .card .vb-mark-btn.on { background: #1e3f2c; color: #5fd394; }
-
-    html[data-vb-theme="dark"] .card.vb-pron { background: #2a2517; border-color: #3e3520; box-shadow: none; }
-    html[data-vb-theme="dark"] .card.vb-pron:hover { box-shadow: 0 6px 16px rgba(0, 0, 0, .35); }
-    html[data-vb-theme="dark"] .card.vb-pron .pos { background: #3a3119; color: #d8b767; }
-    html[data-vb-theme="dark"] .card .vb-pron-btn.on { background: #3a3119; color: #f0c96b; }
+    html[data-vb-theme="dark"] .vb-c0 {
+      --vb-g-bg: #202830; --vb-g-border: #2c3640;
+      --vb-g-word: #8a97a2; --vb-g-phonetic: #7f8c96; --vb-g-meaning: #8d99a3;
+      --vb-g-pos-bg: #273038; --vb-g-pos-fg: #7f8c96;
+      --vb-g-btn-bg: #1e3f2c; --vb-g-btn-fg: #5fd394;
+      --vb-g-shadow: 0 6px 16px rgba(0, 0, 0, .35);
+    }
+    html[data-vb-theme="dark"] .vb-c1 {
+      --vb-g-bg: #2a2517; --vb-g-border: #3e3520;
+      --vb-g-word: #dce5ec; --vb-g-phonetic: #94a3ae; --vb-g-meaning: #d3dbe2;
+      --vb-g-pos-bg: #3a3119; --vb-g-pos-fg: #d8b767;
+      --vb-g-btn-bg: #3a3119; --vb-g-btn-fg: #f0c96b;
+      --vb-g-shadow: 0 6px 16px rgba(0, 0, 0, .35);
+    }
+    html[data-vb-theme="dark"] .vb-c2 {
+      --vb-g-bg: #182631; --vb-g-border: #24384a;
+      --vb-g-word: #dce5ec; --vb-g-phonetic: #8fa2b0; --vb-g-meaning: #c3d0da;
+      --vb-g-pos-bg: #1d3a4d; --vb-g-pos-fg: #7cc4f0;
+      --vb-g-btn-bg: #1d3a4d; --vb-g-btn-fg: #7cc4f0;
+      --vb-g-shadow: 0 6px 16px rgba(0, 0, 0, .35);
+    }
+    html[data-vb-theme="dark"] .vb-c3 {
+      --vb-g-bg: #17251c; --vb-g-border: #263a2c;
+      --vb-g-word: #dce5ec; --vb-g-phonetic: #8fa2b0; --vb-g-meaning: #c3d0da;
+      --vb-g-pos-bg: #1e3f2c; --vb-g-pos-fg: #5fd394;
+      --vb-g-btn-bg: #1e3f2c; --vb-g-btn-fg: #5fd394;
+      --vb-g-shadow: 0 6px 16px rgba(0, 0, 0, .35);
+    }
+    html[data-vb-theme="dark"] .vb-c4 {
+      --vb-g-bg: #221d2e; --vb-g-border: #362d47;
+      --vb-g-word: #dce5ec; --vb-g-phonetic: #9a92ad; --vb-g-meaning: #cdc5db;
+      --vb-g-pos-bg: #2e2740; --vb-g-pos-fg: #b9a5ef;
+      --vb-g-btn-bg: #2e2740; --vb-g-btn-fg: #b9a5ef;
+      --vb-g-shadow: 0 6px 16px rgba(0, 0, 0, .35);
+    }
+    html[data-vb-theme="dark"] .vb-c5 {
+      --vb-g-bg: #2b1a1f; --vb-g-border: #432a32;
+      --vb-g-word: #dce5ec; --vb-g-phonetic: #a89299; --vb-g-meaning: #dcc4ca;
+      --vb-g-pos-bg: #3d232b; --vb-g-pos-fg: #ec9aae;
+      --vb-g-btn-bg: #3d232b; --vb-g-btn-fg: #ec9aae;
+      --vb-g-shadow: 0 6px 16px rgba(0, 0, 0, .35);
+    }
+    html[data-vb-theme="dark"] .vb-row-tag { color: var(--vb-g-pos-fg); background: var(--vb-g-pos-bg); }
 
     html[data-vb-theme="dark"] .overlay { background: rgba(0, 0, 0, .72); }
     html[data-vb-theme="dark"] .overlay-content {
@@ -131,7 +162,6 @@
     html[data-vb-theme="dark"] .vb-row { border-bottom-color: #242d35; }
     html[data-vb-theme="dark"] .vb-row-word { color: #e3e7ea; }
     html[data-vb-theme="dark"] .vb-row-pos { color: #7cc4f0; }
-    html[data-vb-theme="dark"] .vb-row-tag { background: #3a3119; color: #e7c37a; }
     html[data-vb-theme="dark"] .vb-row-meaning { color: #aab6bf; }
     html[data-vb-theme="dark"] .vb-row-btn { background: #1f282f; border-color: #303a44; color: #93a0aa; }
     html[data-vb-theme="dark"] .vb-empty { color: #8b98a3; }
@@ -146,6 +176,28 @@
     html[data-vb-theme="dark"] .overlay-content .vb-cn-toggle.on {
       background: #1d3a4d; border-color: #5aaee6; color: #7cc4f0;
     }
+
+    html[data-vb-theme="dark"] .vb-settings { background: rgba(6, 9, 12, .62); }
+    html[data-vb-theme="dark"] .vb-settings-card {
+      background: #1a2128; color: #e3e7ea; box-shadow: 0 24px 60px rgba(0, 0, 0, .6);
+    }
+    html[data-vb-theme="dark"] .vb-settings-head { border-bottom-color: #2a333c; }
+    html[data-vb-theme="dark"] .vb-settings-head strong { color: #dce5ec; }
+    html[data-vb-theme="dark"] .vb-settings-close { color: #93a0aa; }
+    html[data-vb-theme="dark"] .vb-settings-close:hover { background: #242e37; color: #e3e7ea; }
+    html[data-vb-theme="dark"] .vb-group-row { color: #e3e7ea; }
+    html[data-vb-theme="dark"] .vb-grip { color: #7f8c99; }
+    html[data-vb-theme="dark"] .vb-group-icon,
+    html[data-vb-theme="dark"] .vb-group-name {
+      background: #1f282f; border-color: #303a44; color: #dce5ec;
+    }
+    html[data-vb-theme="dark"] .vb-group-counts { color: #aab6bf; }
+    html[data-vb-theme="dark"] .vb-group-eye { color: #93a0aa; }
+    html[data-vb-theme="dark"] .vb-group-eye:hover { background: #242e37; color: #e3e7ea; }
+    html[data-vb-theme="dark"] .vb-group-eye.on { color: #5aaee6; }
+    html[data-vb-theme="dark"] .vb-group-del { color: #93a0aa; }
+    html[data-vb-theme="dark"] .vb-settings-foot { border-top-color: #2a333c; }
+    html[data-vb-theme="dark"] .vb-settings-note { color: #8b98a3; }
   `;
 
   function loadThemeMode() {
@@ -231,6 +283,7 @@
       if (!data || typeof data !== 'object') return emptyStore();
       data.chapters = data.chapters && typeof data.chapters === 'object' ? data.chapters : {};
       data.settings = data.settings && typeof data.settings === 'object' ? data.settings : {};
+      data.settings.groups = normalizeGroups(data.settings.groups);
       return data;
     } catch (e) {
       console.warn('[词汇追踪] 读取本地数据失败', e);
@@ -406,7 +459,7 @@
     toastTimer = setTimeout(() => toastEl.classList.remove('show'), 1800);
   }
 
-  function buildExportPayload(chapters) {
+  function buildExportPayload(chapters, groups) {
     const titles = {};
     document.querySelectorAll('#mobileChapterSelect option').forEach((opt) => {
       if (opt.value) titles[opt.value] = opt.textContent.trim();
@@ -419,12 +472,13 @@
       version: 1,
       exportedAt: new Date().toISOString(),
       chapterTitles: titles,
+      settings: { groups: groups || DEFAULT_GROUPS.map((group) => Object.assign({}, group)) },
       chapters,
     };
   }
 
-  function downloadStoreJson(chapters) {
-    const json = JSON.stringify(buildExportPayload(chapters), null, 2);
+  function downloadStoreJson(chapters, groups) {
+    const json = JSON.stringify(buildExportPayload(chapters, groups), null, 2);
     const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -439,8 +493,8 @@
     showToast('掌握度状态已导出');
   }
 
-  async function copyStoreJson(chapters) {
-    const json = JSON.stringify(buildExportPayload(chapters), null, 2);
+  async function copyStoreJson(chapters, groups) {
+    const json = JSON.stringify(buildExportPayload(chapters, groups), null, 2);
     try {
       await navigator.clipboard.writeText(json);
       showToast('已复制到剪贴板');
@@ -461,12 +515,49 @@
       showToast('导入失败：缺少 chapters 字段');
       return null;
     }
-    return data.chapters;
+    const rawGroups = data.settings && Array.isArray(data.settings.groups) ? data.settings.groups : [];
+    return { chapters: data.chapters, groups: rawGroups };
   }
 
-  // 旧版本没有 status 字段，一律视为“已认识”
-  function entryStatus(entry) {
-    return entry && entry.status === 'pron' ? 'pron' : 'known';
+  // ===================== 分组配置 =====================
+  const GROUP_COLOR_COUNT = 6;
+  const DEFAULT_GROUPS = [
+    { id: 'pron', name: '发音', icon: '🎤', visible: true, counts: false, color: 1 },
+    { id: 'known', name: '认识', icon: '✓', visible: true, counts: true, color: 0 },
+  ];
+
+  function normalizeGroups(raw) {
+    const list = [];
+    const seen = new Set();
+    (Array.isArray(raw) ? raw : []).forEach((item) => {
+      if (!item || typeof item !== 'object') return;
+      const id = String(item.id || '').trim();
+      if (!id || seen.has(id)) return;
+      seen.add(id);
+      const color = Number.isInteger(item.color)
+        ? ((item.color % GROUP_COLOR_COUNT) + GROUP_COLOR_COUNT) % GROUP_COLOR_COUNT
+        : list.length % GROUP_COLOR_COUNT;
+      list.push({
+        id,
+        name: String(item.name || '').trim().slice(0, 12) || '分组',
+        icon: String(item.icon || '').trim().slice(0, 4) || '●',
+        visible: item.visible !== false,
+        counts: !!item.counts,
+        color,
+      });
+    });
+    if (!list.length) return DEFAULT_GROUPS.map((group) => Object.assign({}, group));
+    if (!seen.has('known')) {
+      list.push(Object.assign({}, DEFAULT_GROUPS.find((group) => group.id === 'known')));
+    }
+    return list;
+  }
+
+  // 旧版本没有 group 字段，用 status 兼容
+  function entryGroup(entry) {
+    if (!entry) return '';
+    if (entry.group) return entry.group;
+    return entry.status === 'pron' ? 'pron' : 'known';
   }
 
   function mergeChapters(target, source) {
@@ -484,7 +575,7 @@
           pos: String(value.pos || ''),
           meaning: String(value.meaning || ''),
           addedAt: value.addedAt || new Date().toISOString(),
-          status: entryStatus(value),
+          group: entryGroup(value),
         };
         added += 1;
       });
@@ -492,7 +583,7 @@
     return added;
   }
 
-  function pickJsonFile(onChapters) {
+  function pickJsonFile(onPayload) {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.json,application/json';
@@ -506,8 +597,8 @@
       }
       const reader = new FileReader();
       reader.onload = () => {
-        const chapters = parseImportPayload(String(reader.result || ''));
-        if (chapters) onChapters(chapters);
+        const payload = parseImportPayload(String(reader.result || ''));
+        if (payload) onPayload(payload);
         input.remove();
       };
       reader.readAsText(file);
@@ -574,7 +665,8 @@
         background: var(--bg, #f5f7fa);
       }
       .vb-filter { display: flex; flex-wrap: wrap; gap: 8px; }
-      .vb-filter .vb-theme-btn { margin-left: auto; }
+      .vb-filter .vb-settings-btn { margin-left: auto; }
+      .vb-filter .vb-theme-btn { margin-left: 0; }
       .vb-filter button {
         display: inline-flex; align-items: center; gap: 6px;
         border: 1px solid #dfe6e9; background: #fff; color: #576574;
@@ -587,12 +679,9 @@
       .vb-filter button.active { background: #3498db; border-color: #3498db; color: #fff; }
       .vb-filter button.active span { color: rgba(255, 255, 255, .85); }
 
-      .card .vb-mark-btn,
-      .card .vb-pron-btn { opacity: .3; }
-      .card:hover .vb-mark-btn,
-      .card:hover .vb-pron-btn { opacity: 1; }
-      .card .vb-mark-btn.on { opacity: 1; background: #d5f0de; color: #1e8449; }
-      .card .vb-pron-btn.on { opacity: 1; background: #fcf0d4; color: #b7791f; }
+      .card .vb-gbtn { opacity: .3; }
+      .card:hover .vb-gbtn { opacity: 1; }
+      .card .vb-gbtn.on { opacity: 1; background: var(--vb-g-btn-bg, #d5f0de); color: var(--vb-g-btn-fg, #1e8449); }
       .vb-hidden { display: none !important; }
 
       .overlay-content .vb-cn-toggle {
@@ -609,17 +698,56 @@
       .overlay-content.vb-cn-hidden .root-box,
       .overlay-content.vb-cn-hidden .extra-box { display: none; }
 
-      .card.vb-known { background: #edf0f2; border-color: #dfe4e8; box-shadow: none; }
-      .card.vb-known:hover { box-shadow: 0 6px 16px rgba(0, 0, 0, .07); }
-      .card.vb-known .word { color: #7a8791; }
-      .card.vb-known .phonetic { color: #9aa5ad; }
-      .card.vb-known .pos { background: #e1e6ea; color: #8b99a3; }
-      .card.vb-known .tag { filter: grayscale(1); opacity: .7; }
-      .card.vb-known .meaning { color: #8b98a2; }
+      .vb-c0 {
+        --vb-g-bg: #edf0f2; --vb-g-border: #dfe4e8;
+        --vb-g-word: #7a8791; --vb-g-phonetic: #9aa5ad; --vb-g-meaning: #8b98a2;
+        --vb-g-pos-bg: #e1e6ea; --vb-g-pos-fg: #8b99a3;
+        --vb-g-btn-bg: #d5f0de; --vb-g-btn-fg: #1e8449;
+        --vb-g-shadow: 0 6px 16px rgba(0, 0, 0, .07);
+      }
+      .vb-c1 {
+        --vb-g-bg: #fdf8ec; --vb-g-border: #efe4cc;
+        --vb-g-word: #2c3e50; --vb-g-phonetic: #7f8c8d; --vb-g-meaning: #576574;
+        --vb-g-pos-bg: #f7ecd5; --vb-g-pos-fg: #a2793a;
+        --vb-g-btn-bg: #fcf0d4; --vb-g-btn-fg: #b7791f;
+        --vb-g-shadow: 0 6px 16px rgba(183, 121, 31, .12);
+      }
+      .vb-c2 {
+        --vb-g-bg: #edf4fd; --vb-g-border: #d3e3f7;
+        --vb-g-word: #2c3e50; --vb-g-phonetic: #7b8a97; --vb-g-meaning: #5b6b78;
+        --vb-g-pos-bg: #dbe9f9; --vb-g-pos-fg: #2f7ab0;
+        --vb-g-btn-bg: #dbe9f9; --vb-g-btn-fg: #2471a3;
+        --vb-g-shadow: 0 6px 16px rgba(47, 122, 176, .12);
+      }
+      .vb-c3 {
+        --vb-g-bg: #eef8f0; --vb-g-border: #d5ecd9;
+        --vb-g-word: #2c3e50; --vb-g-phonetic: #7b8a97; --vb-g-meaning: #5b6b78;
+        --vb-g-pos-bg: #dcf0e1; --vb-g-pos-fg: #26834e;
+        --vb-g-btn-bg: #d5f0de; --vb-g-btn-fg: #1e8449;
+        --vb-g-shadow: 0 6px 16px rgba(30, 132, 73, .12);
+      }
+      .vb-c4 {
+        --vb-g-bg: #f4f0fb; --vb-g-border: #e4dcf5;
+        --vb-g-word: #2c3e50; --vb-g-phonetic: #7b8a97; --vb-g-meaning: #5b6b78;
+        --vb-g-pos-bg: #e9e2f8; --vb-g-pos-fg: #6c46b8;
+        --vb-g-btn-bg: #e9e2f8; --vb-g-btn-fg: #6c46b8;
+        --vb-g-shadow: 0 6px 16px rgba(108, 70, 184, .12);
+      }
+      .vb-c5 {
+        --vb-g-bg: #fdf0f2; --vb-g-border: #f6d9df;
+        --vb-g-word: #2c3e50; --vb-g-phonetic: #7b8a97; --vb-g-meaning: #5b6b78;
+        --vb-g-pos-bg: #fae0e5; --vb-g-pos-fg: #b03a55;
+        --vb-g-btn-bg: #fae0e5; --vb-g-btn-fg: #b03a55;
+        --vb-g-shadow: 0 6px 16px rgba(176, 58, 85, .12);
+      }
 
-      .card.vb-pron { background: #fdf8ec; border-color: #efe4cc; box-shadow: none; }
-      .card.vb-pron:hover { box-shadow: 0 6px 16px rgba(183, 121, 31, .12); }
-      .card.vb-pron .pos { background: #f7ecd5; color: #a2793a; }
+      html .card.vb-grouped { background: var(--vb-g-bg); border-color: var(--vb-g-border); box-shadow: none; }
+      html .card.vb-grouped:hover { box-shadow: var(--vb-g-shadow); }
+      html .card.vb-grouped .word { color: var(--vb-g-word); }
+      html .card.vb-grouped .phonetic { color: var(--vb-g-phonetic); }
+      html .card.vb-grouped .pos { background: var(--vb-g-pos-bg); color: var(--vb-g-pos-fg); }
+      html .card.vb-grouped .meaning { color: var(--vb-g-meaning); }
+      .card.vb-grouped.vb-c0 .tag { filter: grayscale(1); opacity: .7; }
 
       .vb-grid-hint {
         grid-column: 1 / -1;
@@ -696,7 +824,7 @@
       .vb-row-pos { font-weight: 500; color: #3498db; font-size: .7rem; margin-left: 4px; }
       .vb-row-tag {
         margin-left: 6px; padding: 1px 7px; border-radius: 999px;
-        background: #fcf0d4; color: #b7791f;
+        background: var(--vb-g-pos-bg); color: var(--vb-g-pos-fg);
         font-size: .68rem; font-weight: 600; white-space: nowrap;
       }
       .vb-row-meaning {
@@ -720,11 +848,79 @@
       }
       .vb-foot .vb-mini { flex: 1; padding: 6px 8px; }
       .vb-foot .vb-danger:hover { border-color: #e74c3c; color: #e74c3c; }
+
+      .vb-settings {
+        position: fixed; inset: 0; z-index: 950;
+        display: none; align-items: center; justify-content: center;
+        padding: 20px; background: rgba(24, 32, 40, .45);
+        font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+        color: #2d3436;
+      }
+      .vb-settings.open { display: flex; }
+      .vb-settings-card {
+        width: 460px; max-width: 100%; max-height: min(80vh, 640px);
+        display: flex; flex-direction: column; overflow: hidden;
+        background: #fff; border-radius: 16px;
+        box-shadow: 0 24px 60px rgba(44, 62, 80, .28);
+      }
+      .vb-settings-head {
+        display: flex; align-items: center; gap: 8px;
+        padding: 14px 16px 10px; border-bottom: 1px solid #eef1f4;
+      }
+      .vb-settings-head strong { flex: 1; font-size: 1rem; color: #2c3e50; }
+      .vb-settings-close {
+        border: none; background: none; color: #95a5a6;
+        font-size: 1.1rem; cursor: pointer; padding: 2px 4px; border-radius: 6px;
+      }
+      .vb-settings-close:hover { background: #f0f3f5; color: #2c3e50; }
+      .vb-settings-list { flex: 1; overflow-y: auto; padding: 10px 12px; }
+      .vb-group-row {
+        display: flex; align-items: center; gap: 8px;
+        padding: 7px 8px; margin-bottom: 6px;
+        border: 1px solid var(--vb-g-border); border-radius: 10px;
+        background: var(--vb-g-bg); color: #2c3e50;
+      }
+      .vb-group-row.off { opacity: .55; }
+      .vb-group-row.dragging { opacity: .75; box-shadow: 0 8px 20px rgba(0, 0, 0, .16); }
+      .vb-grip {
+        border: none; background: transparent; color: #b0b8bf;
+        font-size: .9rem; line-height: 1; padding: 2px 3px;
+        letter-spacing: -2px; cursor: grab; touch-action: none;
+      }
+      .vb-grip:active { cursor: grabbing; }
+      .vb-group-icon, .vb-group-name {
+        border: 1px solid #dfe6e9; background: #fff; border-radius: 8px;
+        font: inherit; font-size: .85rem; color: #2c3e50; padding: 5px 8px;
+      }
+      .vb-group-icon { width: 46px; text-align: center; }
+      .vb-group-name { flex: 1; min-width: 0; }
+      .vb-group-counts {
+        display: inline-flex; align-items: center; gap: 4px;
+        font-size: .75rem; color: #576574; white-space: nowrap; cursor: pointer;
+      }
+      .vb-group-counts input { margin: 0; }
+      .vb-group-eye, .vb-group-del {
+        border: none; background: transparent; color: #95a5a6;
+        font-size: .95rem; line-height: 1; padding: 4px 5px;
+        border-radius: 8px; cursor: pointer;
+      }
+      .vb-group-eye:hover { background: rgba(52, 152, 219, .1); color: #3498db; }
+      .vb-group-eye.on { color: #3498db; }
+      .vb-group-del:hover:not(:disabled) { background: rgba(231, 76, 60, .1); color: #e74c3c; }
+      .vb-group-del:disabled { opacity: .3; cursor: not-allowed; }
+      .vb-settings-foot {
+        display: flex; align-items: center; gap: 10px;
+        padding: 10px 16px 14px; border-top: 1px solid #eef1f4;
+      }
+      .vb-settings-note { font-size: .72rem; color: #95a5a6; line-height: 1.4; }
+
       @media (max-width: 768px) {
         .vb-topbar { top: 56px; margin-top: 0; }
         .vb-filter .vb-theme-btn { margin-left: 0; }
         .vb-launcher { right: 76px; bottom: 18px; width: 48px; height: 48px; font-size: 1.3rem; }
         .vb-panel { top: 64px; right: 8px; left: 8px; bottom: 84px; width: auto; max-width: none; }
+        .vb-settings { padding: 12px; align-items: flex-start; }
+        .vb-settings-card { margin-top: 48px; max-height: calc(100vh - 96px); }
       }
     `;
     document.head.appendChild(style);
@@ -733,19 +929,59 @@
     const filterBar = document.createElement('div');
     filterBar.className = 'vb-filter';
     filterBar.id = 'vbFilter';
-    filterBar.innerHTML = `
-      <button type="button" data-filter="all" class="active">全部 <span>0</span></button>
-      <button type="button" data-filter="unknown">不认识 <span>0</span></button>
-      <button type="button" data-filter="known">认识 <span>0</span></button>
-      <button type="button" data-filter="pron">发音 <span>0</span></button>
-    `;
 
     themeBtn = document.createElement('button');
     themeBtn.type = 'button';
     themeBtn.className = 'vb-theme-btn';
     themeBtn.addEventListener('click', cycleTheme);
-    filterBar.appendChild(themeBtn);
+
+    const settingsBtn = document.createElement('button');
+    settingsBtn.type = 'button';
+    settingsBtn.className = 'vb-settings-btn';
+    settingsBtn.id = 'vbSettingsBtn';
+    settingsBtn.textContent = '⚙';
+    settingsBtn.title = '分组设置';
+
+    filterBar.append(settingsBtn, themeBtn);
     updateThemeButton();
+
+    function getGroups() {
+      if (!Array.isArray(store.settings.groups)) {
+        store.settings.groups = normalizeGroups(null);
+      }
+      return store.settings.groups;
+    }
+
+    function activeGroups() {
+      return getGroups().filter((group) => group.visible);
+    }
+
+    function findGroup(id) {
+      return getGroups().find((group) => group.id === id) || null;
+    }
+
+    function renderFilterBar() {
+      filterBar.querySelectorAll('button[data-filter]').forEach((btn) => btn.remove());
+      const frag = document.createDocumentFragment();
+      const addChip = (filterId, label) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.dataset.filter = filterId;
+        btn.innerHTML = `${label} <span>0</span>`;
+        frag.appendChild(btn);
+      };
+      addChip('all', '全部');
+      addChip('unknown', '不认识');
+      activeGroups().forEach((group) => {
+        addChip(group.id, `${esc(group.icon)} ${esc(group.name)}`);
+      });
+      filterBar.insertBefore(frag, settingsBtn);
+      filterBar.querySelectorAll('button[data-filter]').forEach((btn) => {
+        btn.classList.toggle('active', btn.dataset.filter === currentFilter);
+      });
+    }
+
+    renderFilterBar();
 
     const progress = createProgressBar('本单元已认识');
 
@@ -770,7 +1006,7 @@
         <button type="button" id="vbClose" title="关闭">✕</button>
       </div>
       <div class="vb-tools">
-        <span class="vb-tools-note">灰显 = 已认识 · 标黄 = 发音待练 · 导出/导入见刷词页</span>
+        <span class="vb-tools-note">颜色 = 分组 · 分组可在 ⚙ 中配置 · 导出/导入见刷词页</span>
       </div>
       <div class="vb-list" id="vbList"></div>
       <div class="vb-foot">
@@ -779,6 +1015,201 @@
     `;
 
     document.body.append(launcher, panel);
+
+    // ===================== 分组设置 =====================
+    const settingsModal = document.createElement('div');
+    settingsModal.className = 'vb-settings';
+    settingsModal.innerHTML = `
+      <div class="vb-settings-card" role="dialog" aria-label="分组设置">
+        <div class="vb-settings-head">
+          <strong>⚙ 分组设置</strong>
+          <button type="button" class="vb-settings-close" id="vbSettingsClose" title="关闭">✕</button>
+        </div>
+        <div class="vb-settings-list" id="vbGroupList"></div>
+        <div class="vb-settings-foot">
+          <button type="button" class="vb-mini" id="vbAddGroup">＋ 新建分组</button>
+          <span class="vb-settings-note">拖动 ⋮⋮ 调整顺序 · 卡片按钮与筛选同步</span>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(settingsModal);
+
+    const groupList = settingsModal.querySelector('#vbGroupList');
+
+    function renderGroupSettings() {
+      groupList.innerHTML = getGroups().map((group) => `
+        <div class="vb-group-row vb-c${group.color}${group.visible ? '' : ' off'}" data-id="${esc(group.id)}">
+          <button type="button" class="vb-grip" title="拖动排序">⋮⋮</button>
+          <input class="vb-group-icon" value="${esc(group.icon)}" maxlength="4" title="图标（emoji 或字符）" aria-label="图标">
+          <input class="vb-group-name" value="${esc(group.name)}" maxlength="12" title="分组名称" aria-label="分组名称">
+          <label class="vb-group-counts" title="计入「已认识」进度"><input type="checkbox" ${group.counts ? 'checked' : ''}> 计入</label>
+          <button type="button" class="vb-group-eye ${group.visible ? 'on' : ''}" title="${group.visible ? '隐藏分组' : '显示分组'}">👁</button>
+          <button type="button" class="vb-group-del" title="删除分组" ${group.id === 'known' ? 'disabled' : ''}>🗑</button>
+        </div>
+      `).join('');
+    }
+
+    function saveGroups() {
+      writeStore(store);
+    }
+
+    function refreshGroupUI() {
+      if (currentFilter !== 'all' && currentFilter !== 'unknown') {
+        const group = findGroup(currentFilter);
+        if (!group || !group.visible) currentFilter = 'all';
+      }
+      renderFilterBar();
+      applyFilter();
+      renderPanel();
+    }
+
+    function openSettings() {
+      renderGroupSettings();
+      settingsModal.classList.add('open');
+    }
+
+    function closeSettings() {
+      settingsModal.classList.remove('open');
+    }
+
+    settingsBtn.addEventListener('click', openSettings);
+    settingsModal.querySelector('#vbSettingsClose').addEventListener('click', closeSettings);
+    settingsModal.addEventListener('click', (e) => {
+      if (e.target === settingsModal) closeSettings();
+    });
+
+    settingsModal.querySelector('#vbAddGroup').addEventListener('click', () => {
+      const groups = getGroups();
+      const used = new Set(groups.map((group) => group.color));
+      let color = groups.length % GROUP_COLOR_COUNT;
+      for (let i = 0; i < GROUP_COLOR_COUNT; i += 1) {
+        if (!used.has(i)) { color = i; break; }
+      }
+      groups.push({
+        id: `g${Date.now().toString(36)}`,
+        name: '新分组',
+        icon: '⭐',
+        visible: true,
+        counts: false,
+        color,
+      });
+      saveGroups();
+      renderGroupSettings();
+      refreshGroupUI();
+      showToast('已新建分组');
+    });
+
+    groupList.addEventListener('input', (e) => {
+      const row = e.target.closest('.vb-group-row');
+      const group = row && findGroup(row.dataset.id);
+      if (!group) return;
+      if (e.target.classList.contains('vb-group-icon')) {
+        group.icon = e.target.value.trim().slice(0, 4) || '●';
+      } else if (e.target.classList.contains('vb-group-name')) {
+        group.name = e.target.value.trim().slice(0, 12) || '分组';
+      } else {
+        return;
+      }
+      saveGroups();
+      refreshGroupUI();
+    });
+
+    groupList.addEventListener('change', (e) => {
+      const row = e.target.closest('.vb-group-row');
+      const group = row && findGroup(row.dataset.id);
+      if (!group) return;
+      if (e.target.matches('.vb-group-counts input')) {
+        group.counts = e.target.checked;
+        saveGroups();
+        applyFilter();
+        renderPanel();
+      } else if (e.target.classList.contains('vb-group-icon')) {
+        e.target.value = group.icon;
+      } else if (e.target.classList.contains('vb-group-name')) {
+        e.target.value = group.name;
+      }
+    });
+
+    groupList.addEventListener('click', (e) => {
+      const row = e.target.closest('.vb-group-row');
+      const group = row && findGroup(row.dataset.id);
+      if (!group) return;
+      if (e.target.closest('.vb-group-eye')) {
+        group.visible = !group.visible;
+        saveGroups();
+        renderGroupSettings();
+        refreshGroupUI();
+      } else if (e.target.closest('.vb-group-del')) {
+        deleteGroup(group);
+      }
+    });
+
+    function deleteGroup(group) {
+      if (group.id === 'known') return;
+      let marks = 0;
+      Object.keys(store.chapters).forEach((chapterId) => {
+        const bag = store.chapters[chapterId];
+        Object.keys(bag).forEach((word) => {
+          if (entryGroup(bag[word]) === group.id) marks += 1;
+        });
+      });
+      const suffix = marks ? `该组的 ${marks} 个标记也会清除。` : '';
+      if (!confirm(`删除分组「${group.name}」？${suffix}`)) return;
+      Object.keys(store.chapters).forEach((chapterId) => {
+        const bag = store.chapters[chapterId];
+        Object.keys(bag).forEach((word) => {
+          if (entryGroup(bag[word]) === group.id) delete bag[word];
+        });
+      });
+      store.settings.groups = getGroups().filter((item) => item.id !== group.id);
+      saveGroups();
+      renderGroupSettings();
+      refreshGroupUI();
+      showToast('分组已删除');
+    }
+
+    // 拖动排序：行顺序同时决定卡片按钮与筛选条顺序
+    let groupDragRow = null;
+
+    function commitGroupOrder() {
+      const order = Array.from(groupList.querySelectorAll('.vb-group-row')).map((row) => row.dataset.id);
+      getGroups().sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
+      saveGroups();
+      refreshGroupUI();
+    }
+
+    groupList.addEventListener('pointerdown', (e) => {
+      const grip = e.target.closest('.vb-grip');
+      if (!grip) return;
+      groupDragRow = grip.closest('.vb-group-row');
+      groupDragRow.classList.add('dragging');
+      grip.setPointerCapture(e.pointerId);
+      e.preventDefault();
+    });
+
+    groupList.addEventListener('pointermove', (e) => {
+      if (!groupDragRow) return;
+      e.preventDefault();
+      const rows = Array.from(groupList.querySelectorAll('.vb-group-row')).filter((row) => row !== groupDragRow);
+      const y = e.clientY;
+      let before = null;
+      for (let i = 0; i < rows.length; i += 1) {
+        const rect = rows[i].getBoundingClientRect();
+        if (y < rect.top + rect.height / 2) { before = rows[i]; break; }
+      }
+      if (before) groupList.insertBefore(groupDragRow, before);
+      else groupList.appendChild(groupDragRow);
+    });
+
+    function endGroupDrag() {
+      if (!groupDragRow) return;
+      groupDragRow.classList.remove('dragging');
+      groupDragRow = null;
+      commitGroupOrder();
+    }
+
+    groupList.addEventListener('pointerup', endGroupDrag);
+    groupList.addEventListener('pointercancel', endGroupDrag);
 
     // ===================== 启动按钮拖动 =====================
     const LAUNCHER_POS_KEY = 'ielts-vocab-tracker.launcher.v1';
@@ -903,7 +1334,12 @@
     });
     els.close.addEventListener('click', () => setPanelOpen(false));
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && panel.classList.contains('open')) setPanelOpen(false);
+      if (e.key !== 'Escape') return;
+      if (settingsModal.classList.contains('open')) {
+        closeSettings();
+      } else if (panel.classList.contains('open')) {
+        setPanelOpen(false);
+      }
     });
 
     // ===================== 筛选逻辑 =====================
@@ -925,54 +1361,53 @@
       return el ? el.textContent.trim() : '';
     }
 
-    function ensureMarkButtons(card, status) {
+    function ensureGroupButtons(card, activeGroupId) {
       const actions = card.querySelector('.card-actions');
       if (!actions) return;
-      let knownBtn = actions.querySelector('.vb-mark-btn');
-      let pronBtn = actions.querySelector('.vb-pron-btn');
-      if (!knownBtn) {
-        knownBtn = document.createElement('button');
-        knownBtn.type = 'button';
-        knownBtn.className = 'btn-icon vb-mark-btn';
-        knownBtn.textContent = '✓';
-        knownBtn.addEventListener('click', (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          setWordStatus(card, 'known');
-        });
-      }
-      if (!pronBtn) {
-        pronBtn = document.createElement('button');
-        pronBtn.type = 'button';
-        pronBtn.className = 'btn-icon vb-pron-btn';
-        pronBtn.textContent = '🎤';
-        pronBtn.addEventListener('click', (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          setWordStatus(card, 'pron');
-        });
-      }
-      // 站点自带的朗读按钮在前：朗读 → 音 → ✓
-      actions.appendChild(pronBtn);
-      actions.appendChild(knownBtn);
-      knownBtn.classList.toggle('on', status === 'known');
-      pronBtn.classList.toggle('on', status === 'pron');
-      knownBtn.title = status === 'known' ? '取消“认识”标记' : '标记为认识（卡片灰显，不再重点展示）';
-      pronBtn.title = status === 'pron' ? '取消“发音待练”标记' : '标记为发音待练（卡片标黄，仍需练发音）';
+      const groups = activeGroups();
+      const existing = new Map();
+      actions.querySelectorAll('.vb-gbtn').forEach((btn) => existing.set(btn.dataset.group, btn));
+      existing.forEach((btn, id) => {
+        if (!groups.some((group) => group.id === id)) {
+          btn.remove();
+          existing.delete(id);
+        }
+      });
+      groups.forEach((group) => {
+        let btn = existing.get(group.id);
+        if (!btn) {
+          btn = document.createElement('button');
+          btn.type = 'button';
+          btn.dataset.group = group.id;
+          btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setWordGroup(card, group.id);
+          });
+          existing.set(group.id, btn);
+        }
+        btn.className = `btn-icon vb-gbtn vb-c${group.color}`;
+        btn.textContent = group.icon || '●';
+        btn.classList.toggle('on', activeGroupId === group.id);
+        btn.title = activeGroupId === group.id ? `取消“${group.name}”标记` : `标记为${group.name}`;
+        actions.appendChild(btn);
+      });
     }
 
-    function setWordStatus(card, status) {
+    function setWordGroup(card, groupId) {
+      const group = findGroup(groupId);
+      if (!group) return;
       const word = cardWord(card);
       if (!word) return;
       const chapterId = getChapterId();
       if (!store.chapters[chapterId]) store.chapters[chapterId] = {};
       const bag = store.chapters[chapterId];
       const prev = bag[word];
-      const current = prev ? entryStatus(prev) : null;
+      const current = prev ? entryGroup(prev) : '';
 
-      if (current === status) {
+      if (current === groupId) {
         delete bag[word];
-        showToast(status === 'known' ? `已取消标记：${word}` : `已取消发音标记：${word}`);
+        showToast(`已取消标记：${word}`);
       } else {
         const posEl = card.querySelector('.pos');
         const meaningEl = card.querySelector('.meaning');
@@ -981,35 +1416,36 @@
           pos: (prev && prev.pos) || (posEl ? posEl.textContent.trim() : ''),
           meaning: (prev && prev.meaning) || (meaningEl ? meaningEl.textContent.trim() : ''),
           addedAt: (prev && prev.addedAt) || new Date().toISOString(),
-          status,
+          group: groupId,
         };
-        showToast(status === 'known' ? `已标记为认识：${word}` : `已标记为发音待练：${word}`);
+        showToast(`已标记为${group.name}：${word}`);
       }
       writeStore(store);
       applyFilter();
       renderPanel();
     }
 
-    function updateFilterCounts(total, knownCount, pronCount) {
+    function updateFilterCounts(total, perGroup, visibleMarked) {
       filterBar.querySelectorAll('button[data-filter]').forEach((btn) => {
         const filter = btn.dataset.filter;
-        let count = knownCount;
+        let count;
         if (filter === 'all') count = total;
-        else if (filter === 'unknown') count = Math.max(0, total - knownCount - pronCount);
-        else if (filter === 'pron') count = pronCount;
+        else if (filter === 'unknown') count = Math.max(0, total - visibleMarked);
+        else count = perGroup[filter] || 0;
         btn.querySelector('span').textContent = count;
       });
     }
 
-    function updateGridHint(total, knownCount, pronCount) {
+    function updateGridHint(total, perGroup, visibleMarked) {
       let hint = grid.querySelector('.vb-grid-hint');
       let text = '';
-      if (currentFilter === 'unknown' && total > 0 && total - knownCount - pronCount === 0) {
+      if (currentFilter === 'unknown' && total > 0 && visibleMarked === total) {
         text = '本章所有单词都已标记。切换上方筛选可以查看它们。';
-      } else if (currentFilter === 'known' && knownCount === 0) {
-        text = '本章还没有标记为认识的单词。切到「全部」后可点卡片上的 ✓。';
-      } else if (currentFilter === 'pron' && pronCount === 0) {
-        text = '本章还没有「发音待练」的单词。切到「全部」后可点卡片上的 🎤。';
+      } else if (currentFilter !== 'all' && currentFilter !== 'unknown') {
+        const group = findGroup(currentFilter);
+        if (group && !perGroup[group.id]) {
+          text = `本章还没有「${group.name}」的单词。切到「全部」后可点卡片上的 ${group.icon}。`;
+        }
       }
 
       if (!text) {
@@ -1028,52 +1464,63 @@
       const chapterId = getChapterId();
       const bag = getBag(chapterId);
       const cards = Array.from(grid.querySelectorAll('.card'));
-      let knownCount = 0;
-      let pronCount = 0;
+      const groups = activeGroups();
+      const byId = new Map(groups.map((group) => [group.id, group]));
+      const perGroup = {};
+      groups.forEach((group) => { perGroup[group.id] = 0; });
+      let visibleMarked = 0;
 
       cards.forEach((card) => {
         const word = cardWord(card);
         if (!word) return;
         const entry = bag[word];
-        const status = entry ? entryStatus(entry) : null;
-        if (status === 'known') knownCount += 1;
-        if (status === 'pron') pronCount += 1;
-        card.classList.toggle('vb-known', status === 'known');
-        card.classList.toggle('vb-pron', status === 'pron');
+        const groupId = entry ? entryGroup(entry) : '';
+        const group = byId.get(groupId) || null;
+        if (group) {
+          perGroup[group.id] += 1;
+          visibleMarked += 1;
+        }
+        card.classList.remove('vb-grouped');
+        for (let i = 0; i < GROUP_COLOR_COUNT; i += 1) card.classList.remove(`vb-c${i}`);
+        if (group) card.classList.add('vb-grouped', `vb-c${group.color}`);
         card.classList.toggle('vb-hidden',
-          (currentFilter === 'unknown' && !!entry)
-          || (currentFilter === 'known' && status !== 'known')
-          || (currentFilter === 'pron' && status !== 'pron'));
-        ensureMarkButtons(card, status);
+          (currentFilter === 'unknown' && !!group)
+          || (currentFilter !== 'all' && currentFilter !== 'unknown' && (!group || groupId !== currentFilter)));
+        ensureGroupButtons(card, group ? groupId : '');
       });
 
-      updateFilterCounts(cards.length, knownCount, pronCount);
+      const knownCount = groups
+        .filter((group) => group.counts)
+        .reduce((sum, group) => sum + (perGroup[group.id] || 0), 0);
+      updateFilterCounts(cards.length, perGroup, visibleMarked);
       progress.update(knownCount, cards.length);
       recordChapterTotal(chapterId, cards.length);
-      updateGridHint(cards.length, knownCount, pronCount);
+      updateGridHint(cards.length, perGroup, visibleMarked);
     }
 
     // ===================== 面板 =====================
     function renderPanel() {
       const chapterId = getChapterId();
       const bag = getBag(chapterId);
-      const entries = Object.values(bag).sort((a, b) =>
-        String(a.addedAt || '').localeCompare(String(b.addedAt || ''))
-      );
+      const byId = new Map(activeGroups().map((group) => [group.id, group]));
+      const entries = Object.values(bag)
+        .map((entry) => ({ entry, group: byId.get(entryGroup(entry)) || null }))
+        .filter((item) => !!item.group)
+        .sort((a, b) => String(a.entry.addedAt || '').localeCompare(String(b.entry.addedAt || '')));
 
       els.sub.textContent = `${chapterTitle(chapterId)} · ${entries.length} 个已标记`;
       els.badge.textContent = entries.length;
       els.badge.style.display = entries.length ? '' : 'none';
 
       if (entries.length === 0) {
-        els.list.innerHTML = '<div class="vb-empty">本章还没有标记任何单词。<br>点卡片上的 ✓ 标记为认识，点 🎤 标记为发音待练。</div>';
+        els.list.innerHTML = '<div class="vb-empty">本章还没有标记任何单词。<br>点卡片上的分组按钮即可标记。</div>';
         return;
       }
 
-      els.list.innerHTML = entries.map((entry) => `
+      els.list.innerHTML = entries.map(({ entry, group }) => `
         <div class="vb-row">
           <div class="vb-row-main">
-            <div class="vb-row-word">${esc(entry.word)}${entry.pos ? `<span class="vb-row-pos">${esc(entry.pos)}</span>` : ''}${entryStatus(entry) === 'pron' ? '<span class="vb-row-tag">🎤 发音待练</span>' : ''}</div>
+            <div class="vb-row-word">${esc(entry.word)}${entry.pos ? `<span class="vb-row-pos">${esc(entry.pos)}</span>` : ''}${group.id === 'known' ? '' : `<span class="vb-row-tag vb-c${group.color}">${esc(group.icon)} ${esc(group.name)}</span>`}</div>
             ${entry.meaning ? `<div class="vb-row-meaning">${esc(entry.meaning)}</div>` : ''}
           </div>
           <button type="button" class="vb-row-btn" data-vb-remove="${esc(entry.word)}">取消</button>
@@ -1238,8 +1685,14 @@
     anchor.insertAdjacentElement('afterend', wrap);
 
     function render() {
-      const chapters = readStore().chapters;
+      const data = readStore();
+      const chapters = data.chapters;
       const counts = readTotals().counts;
+      const counting = new Set(
+        data.settings.groups
+          .filter((group) => group.visible && group.counts)
+          .map((group) => group.id)
+      );
       let total = 0;
       let known = 0;
       for (let id = 1; id <= CHAPTER_COUNT; id += 1) {
@@ -1248,7 +1701,7 @@
         const bag = chapters[id] || {};
         let chapterKnown = 0;
         Object.keys(bag).forEach((word) => {
-          if (entryStatus(bag[word]) === 'known') chapterKnown += 1;
+          if (counting.has(entryGroup(bag[word]))) chapterKnown += 1;
         });
         known += Math.min(chapterKnown, chapterTotal || chapterKnown);
       }
@@ -1259,17 +1712,20 @@
       const btn = e.target.closest('button[id]');
       if (!btn) return;
       if (btn.id === 'vbExport') {
-        downloadStoreJson(readStore().chapters);
+        const data = readStore();
+        downloadStoreJson(data.chapters, data.settings.groups);
       } else if (btn.id === 'vbCopy') {
-        copyStoreJson(readStore().chapters);
+        const data = readStore();
+        copyStoreJson(data.chapters, data.settings.groups);
       } else if (btn.id === 'vbImport') {
-        pickJsonFile((imported) => {
+        pickJsonFile((payload) => {
           const data = readStore();
-          const added = mergeChapters(data.chapters, imported);
-          if (added) {
-            writeStore(data);
-            render();
-          }
+          const knownIds = new Set(data.settings.groups.map((group) => group.id));
+          const extra = normalizeGroups(payload.groups).filter((group) => !knownIds.has(group.id));
+          data.settings.groups = normalizeGroups(data.settings.groups.concat(extra));
+          const added = mergeChapters(data.chapters, payload.chapters);
+          writeStore(data);
+          render();
           showToast(added ? `导入完成，新增 ${added} 个单词` : '导入完成，没有新增单词');
         });
       }
