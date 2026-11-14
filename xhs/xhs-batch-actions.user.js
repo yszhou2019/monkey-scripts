@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         小红书批量操作助手 · XHS Batch Actions
 // @namespace    https://github.com/yszhou2019/monkey-scripts
-// @version      3.1.0
+// @version      3.2.0
 // @description  统一的小红书批量工具：一套标注交互 + 三种动作（批量导出文本[只读] / 批量取消收藏[写] / 批量取消点赞[写，占位]）。所有写操作执行前必须经对话框确认。
 // @author       you
 // @match        https://www.xiaohongshu.com/*
@@ -20,6 +20,8 @@
    *     uncollect 写  ：捕获签名头 → 调 note/uncollect 接口
    *     unlike    写  ：占位，暂不实现
    *
+   * 面板：标注 / 清理 / 执行 三组。执行是一组动作按钮，点哪个就执行哪个，
+   *       不再「下拉选动作 + 再点开始」两步；取消点赞为占位按钮。
    * 安全：任何 write 动作在真正执行前统一过 confirm 门槛（见 runDispatch）。
    *
    * 实测要点（2026-11）：
@@ -323,7 +325,7 @@
   function exportResults(useAll) {
     const records = useAll ? allRecords() : orderedRecords();
     if (!records.length) {
-      alert('还没有抓取到任何内容，请先执行「批量导出文本」。');
+      alert('还没有抓取到任何内容，请先执行「导出文本」。');
       return null;
     }
     const fmt = selFormat.value || CFG.DEFAULT_FORMAT;
@@ -656,38 +658,41 @@
     'position:fixed;right:16px;bottom:16px;z-index:99999;background:#fff;' +
     'border:1px solid #ddd;border-radius:10px;padding:8px 12px;' +
     'box-shadow:0 4px 16px rgba(0,0,0,.15);font-size:13px;line-height:1.8;' +
-    'font-family:-apple-system,"Microsoft YaHei",sans-serif;min-width:0;';
+    'font-family:-apple-system,"Microsoft YaHei",sans-serif;box-sizing:border-box;min-width:0;';
   panel.innerHTML =
     '<div class="xb-head" style="display:flex;align-items:center;gap:6px;' +
-      'cursor:pointer;user-select:none;white-space:nowrap;" title="点击展开面板">' +
-      '<span style="font-weight:700;">小红书批量操作</span>' +
+      'cursor:pointer;user-select:none;white-space:nowrap;color:#222;" title="点击展开面板">' +
+      '<span style="font-weight:700;color:#222;">小红书批量操作</span>' +
       '<span style="color:#999;font-weight:400;font-size:12px;">v3</span>' +
       '<span class="xb-summary" style="color:#666;font-size:12px;"></span>' +
-      '<span class="xb-chevron" style="margin-left:6px;color:#999;font-size:14px;line-height:1;">▾</span>' +
+      '<span class="xb-chevron" style="margin-left:auto;color:#999;font-size:14px;line-height:1;">▾</span>' +
     '</div>' +
     '<div class="xb-body" style="display:none;">' +
       '<div class="xb-info" style="color:#333;margin-top:4px;"></div>' +
       '<div class="xb-status" style="color:#1677ff;font-size:12px;min-height:16px;"></div>' +
-      '<div style="margin-top:4px;color:#555;">动作 <select class="xb-action">' +
-        '<option value="dump" selected>批量导出文本（只读）</option>' +
-        '<option value="uncollect">批量取消收藏（写）</option>' +
-        '<option value="unlike">批量取消点赞（占位）</option>' +
-      '</select></div>' +
-      '<div style="margin-top:4px;">' +
+      // 1 · 标注：一个按钮两态 + 全选（文字链接）
+      '<div class="xb-row">' +
+        '<span class="xb-label">标注</span>' +
         '<button class="xb-btn-mark"></button>' +
-        '<button class="xb-btn-run">开始执行</button>' +
+        '<button class="xb-btn-all xb-link">全选已加载</button>' +
       '</div>' +
-      '<div style="margin-top:2px;">' +
-        '<button class="xb-btn-all">全选当前已加载</button>' +
-        '<button class="xb-btn-pause">暂停</button>' +
-      '</div>' +
-      '<div style="margin-top:2px;">' +
-        '<button class="xb-btn-save">仅导出已抓取</button>' +
+      // 2 · 清理：清空标注 / 清空已抓取的本地缓存
+      '<div class="xb-row">' +
+        '<span class="xb-label">清理</span>' +
         '<button class="xb-btn-clear">清空标注</button>' +
-        '<button class="xb-btn-reset">清空结果</button>' +
+        '<button class="xb-btn-reset">清空缓存</button>' +
       '</div>' +
-      '<div style="margin-top:4px;color:#666;font-size:12px;">' +
-        '速度 <select class="xb-speed">' +
+      // 3 · 执行：一组动作按钮，点哪个就执行哪个（写操作仍过 confirm）
+      '<div class="xb-row">' +
+        '<span class="xb-label">执行</span>' +
+        '<button class="xb-act" data-act="dump">导出文本</button>' +
+        '<button class="xb-act" data-act="uncollect">取消收藏</button>' +
+        '<button class="xb-act" data-act="unlike">取消点赞</button>' +
+      '</div>' +
+      // 配置（不是按钮，收在「选项」行）
+      '<div class="xb-row">' +
+        '<span class="xb-label">选项</span>' +
+        '<span style="color:#666;font-size:12px;">速度 <select class="xb-speed">' +
           '<option value="slow">保守 2.2-4s</option>' +
           '<option value="normal" selected>标准 1.2-2.4s</option>' +
           '<option value="fast">激进 0.6-1.2s</option>' +
@@ -697,9 +702,14 @@
           '<option value="txt">TXT</option>' +
           '<option value="json">JSON</option>' +
           '<option value="csv">CSV</option>' +
-        '</select>' +
+        '</select></span>' +
       '</div>' +
-      '<div class="xb-tip" style="margin-top:4px;color:#999;font-size:11px;line-height:1.5;"></div>' +
+      '<div class="xb-row">' +
+        '<span class="xb-label"></span>' +
+        '<button class="xb-btn-save xb-link" title="下载缓存中的全部结果，含之前批次；当前标注不受影响">仅导出已抓取</button>' +
+        '<button class="xb-btn-pause">暂停</button>' +
+      '</div>' +
+      '<div class="xb-tip" style="margin-top:6px;color:#999;font-size:11px;line-height:1.5;"></div>' +
     '</div>';
   document.body.appendChild(panel);
 
@@ -711,25 +721,41 @@
   const summaryEl = panel.querySelector('.xb-summary');
   const chevEl = panel.querySelector('.xb-chevron');
   const btnMark = panel.querySelector('.xb-btn-mark');
-  const btnRun = panel.querySelector('.xb-btn-run');
   const btnPause = panel.querySelector('.xb-btn-pause');
   const btnAll = panel.querySelector('.xb-btn-all');
   const btnSave = panel.querySelector('.xb-btn-save');
   const btnClear = panel.querySelector('.xb-btn-clear');
   const btnReset = panel.querySelector('.xb-btn-reset');
-  const selAction = panel.querySelector('.xb-action');
+  const actBtns = [...panel.querySelectorAll('.xb-act')];
   const selSpeed = panel.querySelector('.xb-speed');
   const selFormat = panel.querySelector('.xb-format');
 
-  [btnMark, btnRun, btnPause, btnAll, btnSave, btnClear, btnReset].forEach((b) => {
-    b.style.cssText = 'margin:3px 6px 0 0;padding:4px 10px;border:none;border-radius:6px;color:#fff;font-size:12px;';
+  panel.querySelectorAll('.xb-row').forEach((r, i) => {
+    r.style.cssText = 'display:flex;align-items:center;flex-wrap:wrap;gap:5px;margin-top:6px;' +
+      (i === 0 ? 'border-top:1px solid #f0f0f0;padding-top:6px;' : '');
   });
-  [selAction, selSpeed, selFormat].forEach((s) => { s.style.cssText = 'font-size:12px;padding:1px 4px;'; });
+  panel.querySelectorAll('.xb-label').forEach((l) => {
+    l.style.cssText = 'width:30px;flex:none;color:#999;font-size:11px;';
+  });
+  [btnMark, btnPause, btnClear, btnReset, ...actBtns].forEach((b) => {
+    b.style.cssText = 'padding:4px 10px;border:none;border-radius:6px;font-size:12px;' +
+      'color:#fff;cursor:pointer;line-height:1.5;';
+  });
+  [btnAll, btnSave].forEach((b) => {
+    b.style.cssText = 'padding:0;border:none;background:none;color:#1677ff;font-size:11px;' +
+      'cursor:pointer;text-decoration:underline;line-height:1.5;';
+  });
+  [selSpeed, selFormat].forEach((s) => { s.style.cssText = 'font-size:12px;padding:1px 4px;'; });
+  actBtns.forEach((b) => {
+    const A = ACTIONS[b.dataset.act];
+    if (A) b.title = A.tip + (A.implemented ? '' : '（暂未实现）');
+  });
 
   let markingMode = false;
   let running = false;
   let paused = false;
   let abortFlag = false;
+  let currentAction = null;      // 仅执行期间有值；静态时不再有「选中的动作」
 
   /* ---- 折叠 / 展开（默认收起，不持久化） ---- */
   let collapsed = true;
@@ -749,7 +775,8 @@
   function setCollapsed(v) {
     collapsed = !!v;
     bodyEl.style.display = collapsed ? 'none' : 'block';
-    panel.style.minWidth = collapsed ? '0' : '250px';
+    // 展开时给固定宽度，避免底部说明文字把面板撑得过宽；收起时按胶囊内容自适应
+    panel.style.width = collapsed ? '' : '320px';
     panel.style.padding = collapsed ? '8px 12px' : '10px 12px';
     chevEl.textContent = collapsed ? '▾' : '▴';
     headEl.title = collapsed ? '点击展开面板' : '点击收起面板';
@@ -761,7 +788,10 @@
   headEl.onmouseleave = () => { headEl.style.opacity = '1'; };
 
   btnMark.onclick = () => { markingMode = !markingMode; updatePanel(); };
-  btnRun.onclick = () => { if (!running) runDispatch(); };
+  // 动作按钮 = 直接执行，不再「选动作 → 再点开始」两步
+  actBtns.forEach((b) => {
+    b.onclick = () => { if (!running) runDispatch(b.dataset.act); };
+  });
   btnPause.onclick = () => {
     if (!running) return;
     paused = !paused;
@@ -790,7 +820,6 @@
     results = {}; saveResults(); syncBadges(); updatePanel();
     statusEl.textContent = '已清空抓取结果';
   };
-  selAction.onchange = () => { updatePanel(); };
 
   function refreshInfo() {
     const loaded = document.querySelectorAll(SEL.card).length;
@@ -804,37 +833,50 @@
   function updatePanel(status) {
     refreshInfo();
     statusEl.textContent = status || '';
-    const A = ACTIONS[selAction.value] || ACTIONS.dump;
-    const canRun = !running && marks.size > 0 && A.implemented;
+    const A = currentAction ? ACTIONS[currentAction] : null;
+    const writing = !!(running && A && A.write);
+    const idle = !running;
 
+    // 1 · 标注：一个按钮两态
     btnMark.textContent = markingMode ? '退出标注模式' : '开启标注模式';
-    btnRun.textContent = A.implemented ? ('开始' + A.short) : '暂未实现';
-    btnMark.style.background = running ? '#ccc' : '#ff2442';
-    btnRun.style.background = canRun ? (A.write ? '#ff2442' : '#1677ff') : '#ccc';
-    btnPause.style.background = running ? '#1890ff' : '#ccc';
-    btnAll.style.background = running ? '#ccc' : '#fa8c16';
-    btnSave.style.background = running ? '#ccc' : '#52c41a';
-    btnClear.style.background = running ? '#ccc' : '#888';
-    btnReset.style.background = running ? '#ccc' : '#888';
-    btnPause.textContent = paused ? '继续' : '暂停';
-
+    btnMark.style.background = running ? '#ccc' : (markingMode ? '#ff2442' : '#1677ff');
     btnMark.disabled = running;
-    btnRun.disabled = !canRun;
-    btnPause.disabled = !running;
     btnAll.disabled = running;
-    btnSave.disabled = running;
-    btnClear.disabled = running;
-    btnReset.disabled = running;
-    selAction.disabled = running;
-    selSpeed.disabled = running;
-    selFormat.disabled = running || selAction.value !== 'dump';
+    btnAll.style.color = running ? '#bbb' : '#1677ff';
 
-    // 写操作用红色边框 + 警示色，降低误触
-    panel.style.border = A.write ? '2px solid #ff2442' : '1px solid #ddd';
-    statusEl.style.color = A.write ? '#ff2442' : '#1677ff';
+    // 2 · 清理：次要按钮，浅底深字，不与执行按钮抢视觉
+    [btnClear, btnReset].forEach((b) => {
+      b.disabled = running;
+      b.style.background = running ? '#eee' : '#f2f3f5';
+      b.style.color = running ? '#bbb' : '#555';
+    });
+
+    // 3 · 执行：只读蓝 / 写红 / 占位灰，点即执行
+    actBtns.forEach((b) => {
+      const a = ACTIONS[b.dataset.act];
+      const can = idle && marks.size > 0 && a.implemented;
+      b.disabled = !can;
+      b.style.background = !a.implemented ? '#e8e8e8'
+        : can ? (a.write ? '#ff2442' : '#1677ff') : '#ccc';
+      b.style.color = !a.implemented ? '#999' : '#fff';
+    });
+
+    // 次要控件：暂停只在运行时出现
+    btnPause.style.display = running ? 'inline-block' : 'none';
+    btnPause.textContent = paused ? '继续' : '暂停';
+    btnPause.style.background = '#1890ff';
+    btnPause.disabled = !running;
+    btnSave.disabled = running;
+    btnSave.style.color = running ? '#bbb' : '#1677ff';
+    selSpeed.disabled = running;
+    selFormat.disabled = running;
+
+    // 整面板只在真正跑写动作时转红；静态时靠红色按钮警示
+    panel.style.border = writing ? '2px solid #ff2442' : '1px solid #ddd';
+    statusEl.style.color = writing ? '#ff2442' : '#1677ff';
     tipEl.textContent = markingMode
       ? '标注模式：点卡片打标记，可边滚动边标；标过的卡片不怕被回收。'
-      : A.tip;
+      : (A ? A.tip : '先标注卡片，再点「执行」里的动作；写操作会先弹确认框。取消点赞暂为占位。');
     renderSummary();
   }
 
@@ -883,15 +925,14 @@
       '共 ' + n + ' 条标注。',
       '此操作会真实修改账号数据，且不可逆、无法撤销。' + extra,
       '',
-      '建议先切换到「批量导出文本」做一次备份。',
+      '建议先点「导出文本」做一次备份。',
       '',
       '确定继续吗？',
     ].join('\n');
   }
 
-  async function runDispatch() {
+  async function runDispatch(action = CFG.DEFAULT_ACTION) {
     if (running || marks.size === 0) return;
-    const action = selAction.value;
     const A = ACTIONS[action];
     if (!A) return;
 
@@ -900,13 +941,14 @@
       return;
     }
 
-    // === 所有 write 动作的统一确认门槛 ===
+    // === 所有 write 动作的统一确认门槛（按钮直接执行，这一步不能省） ===
     if (A.write && !window.confirm(buildConfirmText(action, marks.size))) {
       statusEl.textContent = '已取消，未执行任何写操作';
       return;
     }
 
     running = true;
+    currentAction = action;
     paused = false;
     abortFlag = false;
     markingMode = false;
@@ -923,6 +965,7 @@
       console.error('[xhs-batch]', e);
     } finally {
       running = false;
+      currentAction = null;
       syncBadges();
       const lastStatus = statusEl.textContent;   // 保留「抓取完成 / 已导出」等最终提示
       updatePanel(lastStatus);
@@ -940,6 +983,8 @@
     get results() { return results; },
     get sig() { return sigHeaders; },
     get collapsed() { return collapsed; },
+    get currentAction() { return currentAction; },
+    get markingMode() { return markingMode; },
     setCollapsed: setCollapsed,
     run: runDispatch,
     fetchNote: fetchNote,

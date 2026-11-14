@@ -7,7 +7,7 @@ action differs.
 > Works on the web app (`xiaohongshu.com`) — the 笔记 / 收藏 / 点赞 tabs.
 > **Every write action asks for confirmation before anything is executed.**
 
-![The unified floating panel at the bottom-right of the Xiaohongshu favorites page, with the action dropdown set to read-only export. Four marked cards are outlined: two green (processed) with check badges and two red (pending) with minus badges. All note covers and text are pixelated for privacy, and no account information is shown.](../images/script-xhs-batch-actions.png)
+![The expanded control panel on a plain white background, containing no account or note content. Three labelled rows: 标注 (mark-mode toggle and select-all link), 清理 (clear marks, clear cache), 执行 (blue export, red uncollect, greyed-out unlike placeholder), plus speed and format options.](../images/script-xhs-batch-actions.png)
 
 ---
 
@@ -17,7 +17,7 @@ action differs.
 | --- | --- | --- | --- |
 | **批量导出文本** (Batch export) | read-only | ready | Dumps each note's original title, body, author, date, hashtags and link to a local file. |
 | **批量取消收藏** (Batch uncollect) | write | ready | Removes favorites through the internal API, without opening a modal per note. |
-| **批量取消点赞** (Batch unlike) | write | placeholder | Reserved entry, not implemented yet; the run button is disabled. |
+| **批量取消点赞** (Batch unlike) | write | placeholder | Reserved entry, not implemented yet; its button is disabled. |
 
 ### Confirmation gate (all write actions)
 
@@ -27,9 +27,10 @@ and the selection stays untouched (verified against the live site). The first un
 run also opens one note to capture the API signature — that note is consumed too, and the
 dialog says so explicitly.
 
-When a write action is selected the panel border turns red and the run button is labelled
-with that action's name. The safe workflow is **export first, then uncollect**, because
-successfully uncollected notes leave the queue.
+Each action is its own button in the **执行** row — clicking it runs that action directly,
+with no separate "start" step. Export is blue, uncollect is red, and the whole panel border
+turns red only while a write action is actually running. The safe workflow is
+**export first, then uncollect**, because successfully uncollected notes leave the queue.
 
 ---
 
@@ -45,13 +46,13 @@ the panel.
 
 ## How marking works (shared)
 
-1. Toggle **开启标注模式** and click cards to mark them, or use **全选当前已加载**.
+1. Toggle **开启标注模式** and click cards to mark them, or use **全选已加载**.
    Scrolling while marking is fine.
 2. Each mark stores `{ noteId, tokenized link, card title }` in localStorage. The
    waterfall list is virtualized and recycles scrolled-away cards (measured 63 → 38), so
    the batch never depends on a card still being in the DOM.
-3. Choose an action, pick a speed, press **开始导出** / **开始取消收藏**. Pause, clear
-   marks and clear results are independent.
+3. Pick a speed, then click one of the **执行** buttons — **导出文本** or **取消收藏**.
+   That single click runs the action (write actions confirm first).
 4. Red `·` badge = pending, green `✓` = processed.
 
 ---
@@ -70,18 +71,21 @@ the panel.
 
 ## Usage
 
-| Control | What it does |
-| --- | --- |
-| **Title bar (click)** | Collapse / expand the panel. Collapsed it still shows the marked count, the 标注中 state, or live run progress. Marking mode stays active while collapsed, so you can keep clicking cards with the panel out of the way. The pill keeps its red border when a write action is selected. |
-| **动作** (Action) | Select export / uncollect / unlike. Switching to a write action turns the panel red. |
-| **开启标注模式** | Toggle, then click cards to mark / unmark. |
-| **全选当前已加载** | Mark every loaded card; scroll down and click again to append. |
-| **开始导出 / 开始取消收藏** | Run the selected action. Write actions confirm first. |
-| **暂停** | Pause / resume. |
-| **仅导出已抓取** | Download everything in the export cache, including earlier batches. |
-| **清空标注** / **清空结果** | Clear the selection or the cached content, independently. |
-| **速度** | Slow 2.2–4s · Normal 1.2–2.4s · Fast 0.6–1.2s. |
-| **格式** | Markdown (default) / TXT / JSON / CSV; only enabled for the export action. |
+The panel has exactly three button groups, plus a small options row.
+
+| Row | Control | What it does |
+| --- | --- | --- |
+| — | **Title bar (click)** | Collapse / expand. Collapsed it still shows the marked count, the 标注中 state, or live run progress. Marking mode stays active while collapsed. |
+| **标注** | **开启标注模式 / 退出标注模式** | One button, two states. Then click cards to mark / unmark. |
+| **标注** | 全选已加载 (link) | Mark every loaded card; scroll down and click again to append. |
+| **清理** | **清空标注** | Clear the selection only. |
+| **清理** | **清空缓存** | Clear fetched results from localStorage; marks are kept. Asks for confirmation. |
+| **执行** | **导出文本** (blue) | Run the read-only export immediately. |
+| **执行** | **取消收藏** (red) | Run uncollect immediately — after the confirmation dialog. |
+| **执行** | **取消点赞** (grey) | Placeholder, permanently disabled. |
+| **选项** | 速度 / 格式 | Slow 2.2–4s · Normal 1.2–2.4s · Fast 0.6–1.2s; Markdown (default) / TXT / JSON / CSV. |
+| — | 仅导出已抓取 (link) | Download everything in the export cache, including earlier batches. |
+| — | **暂停** | Appears only while a batch is running. |
 
 ---
 
@@ -122,8 +126,8 @@ File: `xhs-notes-YYYYMMDD-HHMMSS.{ext}`, saved to your browser's download folder
 
 ## Action 3 — Batch unlike (placeholder)
 
-Not implemented. The option is visible, the run button is disabled, and calling the
-dispatcher shows a notice. The script carries a `runUnlike` TODO block describing what is
+Not implemented. Its button sits in the **执行** row, greyed out and disabled; calling the
+dispatcher directly only shows a notice. The script carries a `runUnlike` TODO block describing what is
 needed: find the real unlike endpoint, capture a signature bound to **that** path (do not
 reuse the uncollect signature), reuse the queue / pacing / risk handling, set
 `ACTIONS.unlike.implemented = true`, and above all **keep the confirmation gate**.
@@ -142,7 +146,7 @@ reuse the uncollect signature), reuse the queue / pacing / risk handling, set
 
 - localStorage survives reloads and enables resume: export skips notes already fetched.
 - It has a ~5 MB quota and is browser-local. **The downloaded file is the durable copy.**
-- Exporting does not clear the cache; use **清空结果** when done.
+- Exporting does not clear the cache; use **清空缓存** (Clear cache) when done.
 
 ---
 
