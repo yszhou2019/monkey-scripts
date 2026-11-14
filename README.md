@@ -12,10 +12,11 @@ One userscript, one marking workflow, three batch actions: **batch export** (rea
 **batch uncollect** (write) and **batch unlike** (write, placeholder). They share the same
 card selection, queue, speed control and panel — only the action differs. Every write
 action asks for confirmation before anything is executed. The panel starts collapsed as a
-small pill in the corner; click its title bar to expand it (as shown below). Inside, three
-labelled groups — mark, clear, execute — keep the workflow to one button per action.
+small pill in the corner; click its title bar to expand it (as shown below). Inside, two
+labelled groups — mark and execute — plus a small options row keep the workflow to one
+button per action.
 
-![The expanded control panel on a plain white background, containing no account or note content. Three labelled rows: 标注 (mark-mode toggle and select-all link), 清理 (clear marks, clear cache), 执行 (blue export, red uncollect, greyed-out unlike placeholder), plus speed and format options.](images/script-xhs-batch-actions.png)
+![The expanded control panel on a plain white background, containing no account or note content. Two labelled rows: 标注 (mark-mode toggle and a 全选 checkbox), 执行 (export and uncollect as uniform light-grey buttons — the running one turns blue — plus the permanently greyed-out unlike placeholder), and speed/format options below.](images/script-xhs-batch-actions.png)
 
 - Docs: [English](xhs/README.md) · [中文](xhs/README.zh.md)
 - Install: [`xhs/xhs-batch-actions.user.js`](xhs/xhs-batch-actions.user.js)

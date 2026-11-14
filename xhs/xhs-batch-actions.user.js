@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         小红书批量操作助手 · XHS Batch Actions
 // @namespace    https://github.com/yszhou2019/monkey-scripts
-// @version      3.2.0
+// @version      3.5.0
 // @description  统一的小红书批量工具：一套标注交互 + 三种动作（批量导出文本[只读] / 批量取消收藏[写] / 批量取消点赞[写，占位]）。所有写操作执行前必须经对话框确认。
 // @author       you
 // @match        https://www.xiaohongshu.com/*
@@ -20,8 +20,9 @@
    *     uncollect 写  ：捕获签名头 → 调 note/uncollect 接口
    *     unlike    写  ：占位，暂不实现
    *
-   * 面板：标注 / 清理 / 执行 三组。执行是一组动作按钮，点哪个就执行哪个，
+   * 面板：标注 / 执行 两组 + 选项行。执行是一组动作按钮，点哪个就执行哪个，
    *       不再「下拉选动作 + 再点开始」两步；取消点赞为占位按钮。
+   *       标注行的「全选」命中 seen（本会话见过的全部卡片），反选即清空，两者对称。
    * 安全：任何 write 动作在真正执行前统一过 confirm 门槛（见 runDispatch）。
    *
    * 实测要点（2026-11）：
@@ -48,6 +49,7 @@
     // 存储（统一版使用独立 key，不与旧独立版互通）
     MARKS_KEY: 'xhs_batch_marks_v1',
     RESULTS_KEY: 'xhs_batch_results_v1',
+    SEEN_KEY: 'xhs_batch_seen_v1',
     SIG_KEY: 'xhs_batch_sig_v1',
 
     // dump：iframe
@@ -145,29 +147,53 @@
       '-' + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds());
   }
 
-  /* ===================== 存储 ===================== */
+  /* ===================== 存储 =====================
+   * 会话级（stateless）：seen / marks / results 只存 sessionStorage。
+   *   - seen：本会话滚动加载过的所有卡片元数据（含已被虚拟列表回收的）；
+   *   - marks：标注队列，始终只是 seen 的子集；
+   *   - 关闭标签页 / 重启浏览器 → 三者自动清空，每次打开都是全新的批处理；
+   *   - 同一标签页内刷新 → 三者都还在，边滚边标不受影响。
+   * 例外：接口签名头仍存 localStorage（24h TTL）。重新采集签名要真实点开并
+   *       取消一张收藏，是实打实的写操作，所以宁可复用凭据也不每个会话重来。
+   * 迁移：旧版本写在 localStorage 里的标注与抓取正文在这里一次性擦掉。
+   */
+  // seen: Map<noteId, {id, href, title}>   本会话见过的全部卡片
   // marks: Map<noteId, {id, href, title}>   标注队列
-  // results: { [noteId]: record }            dump 抓取结果（断点续跑）
+  // results: { [noteId]: record }            dump 抓取结果（本会话内断点续跑）
   // processed: Set<noteId>                  本轮已处理，仅用于绿色角标
+  const STORE = window.sessionStorage;
+  [CFG.MARKS_KEY, CFG.RESULTS_KEY, CFG.SEEN_KEY].forEach((k) => {
+    try { localStorage.removeItem(k); } catch (e) {}
+  });
+  let seen = loadSeen();
   let marks = loadMarks();
   let results = loadResults();
   const processed = new Set();
 
+  function loadSeen() {
+    try {
+      const arr = JSON.parse(STORE.getItem(CFG.SEEN_KEY) || '[]');
+      return new Map(arr.filter((x) => x && x.id).map((x) => [x.id, x]));
+    } catch (e) { return new Map(); }
+  }
+  function saveSeen() {
+    try { STORE.setItem(CFG.SEEN_KEY, JSON.stringify([...seen.values()])); } catch (e) {}
+  }
   function loadMarks() {
     try {
-      const arr = JSON.parse(localStorage.getItem(CFG.MARKS_KEY) || '[]');
+      const arr = JSON.parse(STORE.getItem(CFG.MARKS_KEY) || '[]');
       return new Map(arr.filter((x) => x && x.id).map((x) => [x.id, x]));
     } catch (e) { return new Map(); }
   }
   function saveMarks() {
-    try { localStorage.setItem(CFG.MARKS_KEY, JSON.stringify([...marks.values()])); } catch (e) {}
+    try { STORE.setItem(CFG.MARKS_KEY, JSON.stringify([...marks.values()])); } catch (e) {}
   }
   function loadResults() {
-    try { return JSON.parse(localStorage.getItem(CFG.RESULTS_KEY) || '{}') || {}; }
+    try { return JSON.parse(STORE.getItem(CFG.RESULTS_KEY) || '{}') || {}; }
     catch (e) { return {}; }
   }
   function saveResults() {
-    try { localStorage.setItem(CFG.RESULTS_KEY, JSON.stringify(results)); } catch (e) {}
+    try { STORE.setItem(CFG.RESULTS_KEY, JSON.stringify(results)); } catch (e) {}
   }
 
   function getNoteMeta(sec) {
@@ -179,6 +205,25 @@
     const t = sec.querySelector(SEL.cardTitle);
     const title = t ? (t.innerText || '').trim() : '';
     return { id: id, href: href, title: title };
+  }
+
+  // 只收「链接可用」的卡片：没有 xsec_token 的条目会回退到裸 /explore/{id}，
+  // 实测会 404 / 触发风控。「全选」是无差别的，绝不能把脏链接放进 seen。
+  // href 变化（token 刷新）时顺手更新；只在真正有变化时写盘，避免滚动时高频写。
+  function remember(meta) {
+    if (!meta || !meta.href || meta.href.indexOf('xsec_token=') === -1) return false;
+    const old = seen.get(meta.id);
+    if (old && old.href === meta.href && old.title === meta.title) return false;
+    seen.set(meta.id, meta);
+    return true;
+  }
+  function collectSeen() {
+    let changed = false;
+    document.querySelectorAll(SEL.card).forEach((sec) => {
+      if (remember(getNoteMeta(sec))) changed = true;
+    });
+    if (changed) saveSeen();
+    return changed;
   }
 
   function findCardById(id) {
@@ -634,6 +679,12 @@
     if (sec) sec.style.outline = '';
   }
   function syncBadges() {
+    // 全选可能一次命中几百张，先建一次索引，避免逐条 findCardById 变成 O(n²)
+    const byId = new Map();
+    document.querySelectorAll(SEL.card).forEach((sec) => {
+      const id = sec.getAttribute('data-note-id');
+      if (id) byId.set(id, sec);
+    });
     document.querySelectorAll('.xb-badge').forEach((b) => {
       const sec = b.closest(SEL.card);
       const id = sec && sec.getAttribute('data-note-id');
@@ -641,7 +692,7 @@
     });
     const ids = new Set([...marks.keys(), ...processed]);
     ids.forEach((id) => {
-      const sec = findCardById(id);
+      const sec = byId.get(id);
       if (sec) addBadge(sec, processed.has(id) || !!results[id]);
     });
   }
@@ -670,19 +721,14 @@
     '<div class="xb-body" style="display:none;">' +
       '<div class="xb-info" style="color:#333;margin-top:4px;"></div>' +
       '<div class="xb-status" style="color:#1677ff;font-size:12px;min-height:16px;"></div>' +
-      // 1 · 标注：一个按钮两态 + 全选（文字链接）
+      // 1 · 标注：一个按钮两态 + 「全选」checkbox（命中所有已加载过的卡片）
       '<div class="xb-row">' +
         '<span class="xb-label">标注</span>' +
         '<button class="xb-btn-mark"></button>' +
-        '<button class="xb-btn-all xb-link">全选已加载</button>' +
+        '<label class="xb-all-label" title="勾选：标注所有已加载过的卡片；取消勾选：清空全部标注">' +
+          '<input type="checkbox" class="xb-all"> 全选</label>' +
       '</div>' +
-      // 2 · 清理：清空标注 / 清空已抓取的本地缓存
-      '<div class="xb-row">' +
-        '<span class="xb-label">清理</span>' +
-        '<button class="xb-btn-clear">清空标注</button>' +
-        '<button class="xb-btn-reset">清空缓存</button>' +
-      '</div>' +
-      // 3 · 执行：一组动作按钮，点哪个就执行哪个（写操作仍过 confirm）
+      // 2 · 执行：一组动作按钮，点哪个就执行哪个（写操作仍过 confirm）
       '<div class="xb-row">' +
         '<span class="xb-label">执行</span>' +
         '<button class="xb-act" data-act="dump">导出文本</button>' +
@@ -722,10 +768,9 @@
   const chevEl = panel.querySelector('.xb-chevron');
   const btnMark = panel.querySelector('.xb-btn-mark');
   const btnPause = panel.querySelector('.xb-btn-pause');
-  const btnAll = panel.querySelector('.xb-btn-all');
+  const btnAll = panel.querySelector('.xb-all');           // 全选 checkbox
+  const allLabel = panel.querySelector('.xb-all-label');
   const btnSave = panel.querySelector('.xb-btn-save');
-  const btnClear = panel.querySelector('.xb-btn-clear');
-  const btnReset = panel.querySelector('.xb-btn-reset');
   const actBtns = [...panel.querySelectorAll('.xb-act')];
   const selSpeed = panel.querySelector('.xb-speed');
   const selFormat = panel.querySelector('.xb-format');
@@ -737,19 +782,27 @@
   panel.querySelectorAll('.xb-label').forEach((l) => {
     l.style.cssText = 'width:30px;flex:none;color:#999;font-size:11px;';
   });
-  [btnMark, btnPause, btnClear, btnReset, ...actBtns].forEach((b) => {
+  [btnMark, btnPause, ...actBtns].forEach((b) => {
     b.style.cssText = 'padding:4px 10px;border:none;border-radius:6px;font-size:12px;' +
       'color:#fff;cursor:pointer;line-height:1.5;';
   });
-  [btnAll, btnSave].forEach((b) => {
-    b.style.cssText = 'padding:0;border:none;background:none;color:#1677ff;font-size:11px;' +
-      'cursor:pointer;text-decoration:underline;line-height:1.5;';
-  });
+  allLabel.style.cssText = 'display:inline-flex;align-items:center;gap:3px;' +
+    'font-size:12px;color:#555;cursor:pointer;user-select:none;';
+  btnAll.style.cssText = 'margin:0;cursor:pointer;accent-color:#1677ff;';
+  btnSave.style.cssText = 'padding:0;border:none;background:none;color:#1677ff;font-size:11px;' +
+    'cursor:pointer;text-decoration:underline;line-height:1.5;';
   [selSpeed, selFormat].forEach((s) => { s.style.cssText = 'font-size:12px;padding:1px 4px;'; });
   actBtns.forEach((b) => {
     const A = ACTIONS[b.dataset.act];
     if (A) b.title = A.tip + (A.implemented ? '' : '（暂未实现）');
   });
+  // 动作按钮：按下瞬间给蓝色反馈；执行期间由 updatePanel 保持蓝色高亮。
+  // 用 !important 覆盖 updatePanel 写的内联底色，:not(:disabled) 排除占位按钮。
+  const actStyle = document.createElement('style');
+  actStyle.textContent =
+    '.xb-act{transition:background .15s,color .15s,box-shadow .15s;}' +
+    '.xb-act:active:not(:disabled){background:#1677ff!important;color:#fff!important;}';
+  panel.appendChild(actStyle);
 
   let markingMode = false;
   let running = false;
@@ -799,35 +852,28 @@
     if (!paused) statusEl.textContent = '';
     renderSummary();
   };
-  btnAll.onclick = () => {
+  // 「全选」是状态控件，作用域 = 本会话所有已加载过的卡片（seen，含已被虚拟
+  // 列表回收的）。勾选 = 全部标上，反选 = 一个都不选；两者严格对称，不做快照/撤销。
+  btnAll.onchange = () => {
     if (running) return;
-    let n = 0;
-    document.querySelectorAll(SEL.card).forEach((sec) => {
-      const meta = getNoteMeta(sec);
-      if (meta && !marks.has(meta.id)) { marks.set(meta.id, meta); n++; }
-    });
-    saveMarks(); syncBadges(); updatePanel();
-    statusEl.textContent = '已全选 ' + n + ' 张（继续下滑可再全选追加）';
+    if (btnAll.checked) {
+      collectSeen();
+      marks = new Map(seen);
+      saveMarks(); syncBadges(); updatePanel();
+      statusEl.textContent = '已全选 ' + marks.size + ' 张';
+    } else {
+      marks.clear(); saveMarks(); syncBadges(); updatePanel();
+      statusEl.textContent = '已清空标注';
+    }
   };
   btnSave.onclick = () => { if (!running) exportResults(true); };
-  btnClear.onclick = () => {
-    if (running) return;
-    marks.clear(); saveMarks(); syncBadges(); updatePanel();
-  };
-  btnReset.onclick = () => {
-    if (running) return;
-    if (!confirm('清空已抓取的内容？标注会保留，下次导出会重新抓取。')) return;
-    results = {}; saveResults(); syncBadges(); updatePanel();
-    statusEl.textContent = '已清空抓取结果';
-  };
 
   function refreshInfo() {
-    const loaded = document.querySelectorAll(SEL.card).length;
     const grabbed = [...marks.keys()].filter((id) => !!results[id]).length;
     infoEl.textContent =
       '已标注 ' + marks.size + ' 张' +
       (grabbed ? '（已抓取 ' + grabbed + '）' : '') +
-      (loaded ? ' | 已加载 ' + loaded : '');
+      (seen.size ? ' | 已加载 ' + seen.size + ' 张' : '');
   }
 
   function updatePanel(status) {
@@ -837,28 +883,37 @@
     const writing = !!(running && A && A.write);
     const idle = !running;
 
-    // 1 · 标注：一个按钮两态
+    // 1 · 标注：一个按钮两态 + 全选 checkbox 反映「所有已加载卡片是否全部已标注」
     btnMark.textContent = markingMode ? '退出标注模式' : '开启标注模式';
     btnMark.style.background = running ? '#ccc' : (markingMode ? '#ff2442' : '#1677ff');
     btnMark.disabled = running;
+    const allMarked = seen.size > 0 && [...seen.keys()].every((id) => marks.has(id));
+    btnAll.checked = allMarked;
+    btnAll.indeterminate = !allMarked && marks.size > 0;
     btnAll.disabled = running;
-    btnAll.style.color = running ? '#bbb' : '#1677ff';
+    allLabel.style.color = running ? '#bbb' : '#555';
 
-    // 2 · 清理：次要按钮，浅底深字，不与执行按钮抢视觉
-    [btnClear, btnReset].forEach((b) => {
-      b.disabled = running;
-      b.style.background = running ? '#eee' : '#f2f3f5';
-      b.style.color = running ? '#bbb' : '#555';
-    });
-
-    // 3 · 执行：只读蓝 / 写红 / 占位灰，点即执行
+    // 2 · 执行：默认统一浅灰底深字，不再按动作类型染色；
+    //    点击后正在执行的那个动作变蓝，直到本轮结束；未实现的占位始终灰。
     actBtns.forEach((b) => {
       const a = ACTIONS[b.dataset.act];
+      const isCurrent = running && currentAction === b.dataset.act;
       const can = idle && marks.size > 0 && a.implemented;
-      b.disabled = !can;
-      b.style.background = !a.implemented ? '#e8e8e8'
-        : can ? (a.write ? '#ff2442' : '#1677ff') : '#ccc';
-      b.style.color = !a.implemented ? '#999' : '#fff';
+      // 当前动作保持非 disabled，蓝色高亮才不会被浏览器灰化；重复点击由 onclick 的 running 守卫拦住
+      b.disabled = !can && !isCurrent;
+      if (!a.implemented) {
+        b.style.background = '#e8e8e8';
+        b.style.color = '#999';
+        b.style.boxShadow = 'none';
+      } else if (isCurrent) {
+        b.style.background = '#1677ff';
+        b.style.color = '#fff';
+        b.style.boxShadow = '0 0 0 2px rgba(22,119,255,.18)';
+      } else {
+        b.style.background = '#f2f3f5';
+        b.style.color = can ? '#555' : '#bbb';
+        b.style.boxShadow = 'none';
+      }
     });
 
     // 次要控件：暂停只在运行时出现
@@ -871,7 +926,7 @@
     selSpeed.disabled = running;
     selFormat.disabled = running;
 
-    // 整面板只在真正跑写动作时转红；静态时靠红色按钮警示
+    // 按钮不再按动作类型染色，危险提示改由「写操作确认框 + 运行期红边框/红状态字」承担
     panel.style.border = writing ? '2px solid #ff2442' : '1px solid #ddd';
     statusEl.style.color = writing ? '#ff2442' : '#1677ff';
     tipEl.textContent = markingMode
@@ -890,6 +945,7 @@
     e.stopImmediatePropagation();
     const meta = getNoteMeta(sec);
     if (!meta) return;
+    if (remember(meta)) saveSeen();   // 手动标过的可用卡片也纳入全选范围
     if (marks.has(meta.id)) { marks.delete(meta.id); removeBadge(sec); }
     else { marks.set(meta.id, meta); addBadge(sec, !!results[meta.id]); }
     saveMarks();
@@ -908,6 +964,7 @@
     if (!relevant || refreshTimer) return;
     refreshTimer = setTimeout(() => {
       refreshTimer = null;
+      collectSeen();          // 新加载的卡片先记进 seen，全选才能命中它们
       refreshInfo();
       if (marks.size || processed.size) syncBadges();
     }, CFG.OBSERVE_DEBOUNCE_MS);
@@ -976,9 +1033,11 @@
   setCollapsed(true);       // 每次打开页面都从收起态开始
   installHook();
   restoreSig();
+  collectSeen();            // 首屏卡片也记进 seen
   updatePanel();
   syncBadges();
   window.XHSBATCH = {
+    get seen() { return seen; },
     get marks() { return marks; },
     get results() { return results; },
     get sig() { return sigHeaders; },
