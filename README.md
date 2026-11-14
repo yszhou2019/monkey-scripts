@@ -11,9 +11,10 @@ A personal collection of Tampermonkey / Violentmonkey userscripts.
 One userscript, one marking workflow, three batch actions: **batch export** (read-only),
 **batch uncollect** (write) and **batch unlike** (write, placeholder). They share the same
 card selection, queue, speed control and panel — only the action differs. Every write
-action asks for confirmation before anything is executed.
+action asks for confirmation before anything is executed. The panel starts collapsed as a
+small pill in the corner; click its title bar to expand it (as shown below).
 
-![The unified floating panel at the bottom-right of the Xiaohongshu favorites page, with the action dropdown set to read-only export. Four marked cards are outlined: two green (processed) with check badges and two red (pending) with minus badges. All note covers and text are pixelated for privacy, and no account information is shown.](images/script-xhs-batch-actions.png)
+![The unified floating panel, expanded, at the bottom-right of the Xiaohongshu favorites page, with the action dropdown set to read-only export. Four marked cards are outlined: two green (processed) with check badges and two red (pending) with minus badges. All note covers and text are pixelated for privacy, and no account information is shown.](images/script-xhs-batch-actions.png)
 
 - Docs: [English](xhs/README.md) · [中文](xhs/README.zh.md)
 - Install: [`xhs/xhs-batch-actions.user.js`](xhs/xhs-batch-actions.user.js)

@@ -62,7 +62,9 @@ the panel.
    [Violentmonkey](https://violentmonkey.github.io/).
 2. Import `xhs-batch-actions.user.js` (Tampermonkey → Utilities → Import), or paste it
    into a new script.
-3. Open your logged-in Xiaohongshu profile → 收藏 or 点赞. One floating panel appears.
+3. Open your logged-in Xiaohongshu profile → 收藏 or 点赞. A small **collapsed pill**
+   appears at the bottom-right. Click its title bar to expand the full control panel.
+   It starts collapsed on every page load, so it never covers the feed by default.
 
 ---
 
@@ -70,6 +72,7 @@ the panel.
 
 | Control | What it does |
 | --- | --- |
+| **Title bar (click)** | Collapse / expand the panel. Collapsed it still shows the marked count, the 标注中 state, or live run progress. Marking mode stays active while collapsed, so you can keep clicking cards with the panel out of the way. The pill keeps its red border when a write action is selected. |
 | **动作** (Action) | Select export / uncollect / unlike. Switching to a write action turns the panel red. |
 | **开启标注模式** | Toggle, then click cards to mark / unmark. |
 | **全选当前已加载** | Mark every loaded card; scroll down and click again to append. |

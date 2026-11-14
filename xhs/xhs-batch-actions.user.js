@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         小红书批量操作助手 · XHS Batch Actions
 // @namespace    https://github.com/yszhou2019/monkey-scripts
-// @version      3.0.0
+// @version      3.1.0
 // @description  统一的小红书批量工具：一套标注交互 + 三种动作（批量导出文本[只读] / 批量取消收藏[写] / 批量取消点赞[写，占位]）。所有写操作执行前必须经对话框确认。
 // @author       you
 // @match        https://www.xiaohongshu.com/*
@@ -644,55 +644,72 @@
     });
   }
 
-  /* ===================== 面板（共用） ===================== */
+  /* ===================== 面板（共用） =====================
+   * 标题栏常驻，点击折叠 / 展开；默认收起，避免遮挡页面内容。
+   * 收起时胶囊上仍显示标注数与运行/标注状态，且不关闭标注模式，
+   * 这样可以收起面板后继续边滚动边点卡片。
+   * 折叠状态不持久化：每次打开页面都回到收起态。
+   * ====================================================== */
   const panel = document.createElement('div');
   panel.id = 'xhs-batch-panel';
   panel.style.cssText =
     'position:fixed;right:16px;bottom:16px;z-index:99999;background:#fff;' +
-    'border:1px solid #ddd;border-radius:10px;padding:10px 12px;' +
+    'border:1px solid #ddd;border-radius:10px;padding:8px 12px;' +
     'box-shadow:0 4px 16px rgba(0,0,0,.15);font-size:13px;line-height:1.8;' +
-    'font-family:-apple-system,"Microsoft YaHei",sans-serif;min-width:250px;';
+    'font-family:-apple-system,"Microsoft YaHei",sans-serif;min-width:0;';
   panel.innerHTML =
-    '<div style="font-weight:700;margin-bottom:2px;">小红书批量操作 <span style="color:#999;font-weight:400;">v3 统一版</span></div>' +
-    '<div class="xb-info" style="color:#333;"></div>' +
-    '<div class="xb-status" style="color:#1677ff;font-size:12px;min-height:16px;"></div>' +
-    '<div style="margin-top:4px;color:#555;">动作 <select class="xb-action">' +
-      '<option value="dump" selected>批量导出文本（只读）</option>' +
-      '<option value="uncollect">批量取消收藏（写）</option>' +
-      '<option value="unlike">批量取消点赞（占位）</option>' +
-    '</select></div>' +
-    '<div style="margin-top:4px;">' +
-      '<button class="xb-btn-mark"></button>' +
-      '<button class="xb-btn-run">开始执行</button>' +
+    '<div class="xb-head" style="display:flex;align-items:center;gap:6px;' +
+      'cursor:pointer;user-select:none;white-space:nowrap;" title="点击展开面板">' +
+      '<span style="font-weight:700;">小红书批量操作</span>' +
+      '<span style="color:#999;font-weight:400;font-size:12px;">v3</span>' +
+      '<span class="xb-summary" style="color:#666;font-size:12px;"></span>' +
+      '<span class="xb-chevron" style="margin-left:6px;color:#999;font-size:14px;line-height:1;">▾</span>' +
     '</div>' +
-    '<div style="margin-top:2px;">' +
-      '<button class="xb-btn-all">全选当前已加载</button>' +
-      '<button class="xb-btn-pause">暂停</button>' +
-    '</div>' +
-    '<div style="margin-top:2px;">' +
-      '<button class="xb-btn-save">仅导出已抓取</button>' +
-      '<button class="xb-btn-clear">清空标注</button>' +
-      '<button class="xb-btn-reset">清空结果</button>' +
-    '</div>' +
-    '<div style="margin-top:4px;color:#666;font-size:12px;">' +
-      '速度 <select class="xb-speed">' +
-        '<option value="slow">保守 2.2-4s</option>' +
-        '<option value="normal" selected>标准 1.2-2.4s</option>' +
-        '<option value="fast">激进 0.6-1.2s</option>' +
-      '</select> ' +
-      '格式 <select class="xb-format">' +
-        '<option value="md" selected>Markdown</option>' +
-        '<option value="txt">TXT</option>' +
-        '<option value="json">JSON</option>' +
-        '<option value="csv">CSV</option>' +
-      '</select>' +
-    '</div>' +
-    '<div class="xb-tip" style="margin-top:4px;color:#999;font-size:11px;line-height:1.5;"></div>';
+    '<div class="xb-body" style="display:none;">' +
+      '<div class="xb-info" style="color:#333;margin-top:4px;"></div>' +
+      '<div class="xb-status" style="color:#1677ff;font-size:12px;min-height:16px;"></div>' +
+      '<div style="margin-top:4px;color:#555;">动作 <select class="xb-action">' +
+        '<option value="dump" selected>批量导出文本（只读）</option>' +
+        '<option value="uncollect">批量取消收藏（写）</option>' +
+        '<option value="unlike">批量取消点赞（占位）</option>' +
+      '</select></div>' +
+      '<div style="margin-top:4px;">' +
+        '<button class="xb-btn-mark"></button>' +
+        '<button class="xb-btn-run">开始执行</button>' +
+      '</div>' +
+      '<div style="margin-top:2px;">' +
+        '<button class="xb-btn-all">全选当前已加载</button>' +
+        '<button class="xb-btn-pause">暂停</button>' +
+      '</div>' +
+      '<div style="margin-top:2px;">' +
+        '<button class="xb-btn-save">仅导出已抓取</button>' +
+        '<button class="xb-btn-clear">清空标注</button>' +
+        '<button class="xb-btn-reset">清空结果</button>' +
+      '</div>' +
+      '<div style="margin-top:4px;color:#666;font-size:12px;">' +
+        '速度 <select class="xb-speed">' +
+          '<option value="slow">保守 2.2-4s</option>' +
+          '<option value="normal" selected>标准 1.2-2.4s</option>' +
+          '<option value="fast">激进 0.6-1.2s</option>' +
+        '</select> ' +
+        '格式 <select class="xb-format">' +
+          '<option value="md" selected>Markdown</option>' +
+          '<option value="txt">TXT</option>' +
+          '<option value="json">JSON</option>' +
+          '<option value="csv">CSV</option>' +
+        '</select>' +
+      '</div>' +
+      '<div class="xb-tip" style="margin-top:4px;color:#999;font-size:11px;line-height:1.5;"></div>' +
+    '</div>';
   document.body.appendChild(panel);
 
   const infoEl = panel.querySelector('.xb-info');
   const statusEl = panel.querySelector('.xb-status');
   const tipEl = panel.querySelector('.xb-tip');
+  const headEl = panel.querySelector('.xb-head');
+  const bodyEl = panel.querySelector('.xb-body');
+  const summaryEl = panel.querySelector('.xb-summary');
+  const chevEl = panel.querySelector('.xb-chevron');
   const btnMark = panel.querySelector('.xb-btn-mark');
   const btnRun = panel.querySelector('.xb-btn-run');
   const btnPause = panel.querySelector('.xb-btn-pause');
@@ -714,6 +731,35 @@
   let paused = false;
   let abortFlag = false;
 
+  /* ---- 折叠 / 展开（默认收起，不持久化） ---- */
+  let collapsed = true;
+
+  function renderSummary() {
+    if (!collapsed) { summaryEl.textContent = ''; return; }
+    if (running) {
+      // 收起后仍能看到「导出 3/10」这类进度，不必展开面板
+      summaryEl.textContent = (statusEl.textContent || '执行中')
+        .replace(/（[^）]*）/g, '').slice(0, 16);
+    } else {
+      summaryEl.textContent = (markingMode ? '标注中 · ' : '') +
+        '已标注 ' + marks.size + ' 张';
+    }
+  }
+
+  function setCollapsed(v) {
+    collapsed = !!v;
+    bodyEl.style.display = collapsed ? 'none' : 'block';
+    panel.style.minWidth = collapsed ? '0' : '250px';
+    panel.style.padding = collapsed ? '8px 12px' : '10px 12px';
+    chevEl.textContent = collapsed ? '▾' : '▴';
+    headEl.title = collapsed ? '点击展开面板' : '点击收起面板';
+    renderSummary();
+  }
+
+  headEl.onclick = () => setCollapsed(!collapsed);
+  headEl.onmouseenter = () => { headEl.style.opacity = '.65'; };
+  headEl.onmouseleave = () => { headEl.style.opacity = '1'; };
+
   btnMark.onclick = () => { markingMode = !markingMode; updatePanel(); };
   btnRun.onclick = () => { if (!running) runDispatch(); };
   btnPause.onclick = () => {
@@ -721,6 +767,7 @@
     paused = !paused;
     btnPause.textContent = paused ? '继续' : '暂停';
     if (!paused) statusEl.textContent = '';
+    renderSummary();
   };
   btnAll.onclick = () => {
     if (running) return;
@@ -788,6 +835,7 @@
     tipEl.textContent = markingMode
       ? '标注模式：点卡片打标记，可边滚动边标；标过的卡片不怕被回收。'
       : A.tip;
+    renderSummary();
   }
 
   /* ===================== 标注模式点击拦截（共用） ===================== */
@@ -882,6 +930,7 @@
   }
 
   /* ===================== 启动 ===================== */
+  setCollapsed(true);       // 每次打开页面都从收起态开始
   installHook();
   restoreSig();
   updatePanel();
@@ -890,6 +939,8 @@
     get marks() { return marks; },
     get results() { return results; },
     get sig() { return sigHeaders; },
+    get collapsed() { return collapsed; },
+    setCollapsed: setCollapsed,
     run: runDispatch,
     fetchNote: fetchNote,
     export: exportResults,
