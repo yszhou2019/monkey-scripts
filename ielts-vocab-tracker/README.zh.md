@@ -221,9 +221,15 @@ Violentmonkey，导入同一个文件即可。界面已做响应式处理：筛�
 
 ## Buy Me a Coffee · 打赏
 
-如果这个脚本帮你省了一点背词时间，欢迎扫码请我喝杯咖啡。
+如果这个脚本帮你省了一点背词时间，欢迎扫码请我喝杯咖啡。微信、支付宝任选其一。
 
-![支付宝收款码](../images/alipay-qr.png)
+<img src="../images/donate-wechat.jpg" alt="微信支付收款码" width="280">
+
+**微信支付**
+
+<img src="../images/donate-alipay.jpg" alt="支付宝收款码" width="280">
+
+**支付宝**
 
 ---
 

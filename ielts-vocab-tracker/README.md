@@ -280,10 +280,16 @@ backup first.
 
 ## Buy Me a Coffee · 打赏
 
-If this script saves you some review time, a small tip is welcome — scan the Alipay code
-below.
+If this script saves you some review time, a small tip is welcome. Scan whichever code you
+prefer — WeChat Pay or Alipay.
 
-![Alipay donation QR code](../images/alipay-qr.png)
+<img src="../images/donate-wechat.jpg" alt="WeChat Pay donation QR code" width="280">
+
+**微信支付 · WeChat Pay**
+
+<img src="../images/donate-alipay.jpg" alt="Alipay donation QR code" width="280">
+
+**支付宝 · Alipay**
 
 ---
 
