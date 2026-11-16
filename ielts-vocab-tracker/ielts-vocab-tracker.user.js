@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         雅思词汇掌握度助手 · IELTS Vocab Tracker
 // @namespace    https://www.leonwang.cc/ielts-vocab/
-// @version      2.13.0
+// @version      2.13.1
 // @description  为 leonwang.cc 雅思词汇卡片增加可配置分组标记、分组筛选、WebDAV（坚果云）多端同步（筛选栏一键同步按钮）、本单元与全站熟悉度进度条、深色主题；单词详情默认隐藏中文、只留英文例句，手机端轻点详情卡即可关闭；状态可导出 / 导入 JSON。
 // @license      MIT
 // @homepageURL  https://github.com/yszhou2019/monkey-scripts
