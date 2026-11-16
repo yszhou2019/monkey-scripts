@@ -16,7 +16,7 @@
 ![展开后的控制面板特写，纯白背景，不含任何账号或笔记内容。两行分组：标注（标注模式开关、「全选」勾选框）、执行（「导出文本」「取消收藏」为统一浅灰按钮，点中执行时变蓝；「取消点赞」为始终灰色禁用的占位），下方是速度与格式选项。](images/script-xhs-batch-actions.png)
 
 - 文档：[中文](xhs/README.zh.md) · [English](xhs/README.md)
-- 安装：[`xhs/xhs-batch-actions.user.js`](xhs/xhs-batch-actions.user.js)
+- 安装：[`xhs/xhs-batch-actions.user.js`](xhs/xhs-batch-actions.user.js) · [Greasy Fork](https://greasyfork.org/zh-CN/scripts/605739)
 
 ---
 

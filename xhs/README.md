@@ -71,8 +71,10 @@ copy of the panel.
 
 1. Install [Tampermonkey](https://www.tampermonkey.net/) or
    [Violentmonkey](https://violentmonkey.github.io/).
-2. Import `xhs-batch-actions.user.js` (Tampermonkey → Utilities → Import), or paste it
-   into a new script.
+2. Add `xhs-batch-actions.user.js`:
+   - install from the [Greasy Fork listing](https://greasyfork.org/en/scripts/605739) (easiest), **or**
+   - Tampermonkey → Utilities → Import (choose the file), **or**
+   - create a new script and paste the contents of `xhs-batch-actions.user.js`.
 3. Open your logged-in Xiaohongshu profile → 收藏 or 点赞. A small **collapsed pill**
    appears at the bottom-right. Click its title bar to expand the full control panel.
    It starts collapsed on every page load, so it never covers the feed by default.

@@ -19,7 +19,7 @@ button per action.
 ![The expanded control panel on a plain white background, containing no account or note content. Two labelled rows: 标注 (mark-mode toggle and a 全选 checkbox), 执行 (export and uncollect as uniform light-grey buttons — the running one turns blue — plus the permanently greyed-out unlike placeholder), and speed/format options below.](images/script-xhs-batch-actions.png)
 
 - Docs: [English](xhs/README.md) · [中文](xhs/README.zh.md)
-- Install: [`xhs/xhs-batch-actions.user.js`](xhs/xhs-batch-actions.user.js)
+- Install: [`xhs/xhs-batch-actions.user.js`](xhs/xhs-batch-actions.user.js) · [Greasy Fork](https://greasyfork.org/en/scripts/605739)
 
 ---
 

@@ -60,7 +60,10 @@
 
 1. 安装 [Tampermonkey 油猴](https://www.tampermonkey.net/) 或
    [Violentmonkey](https://violentmonkey.github.io/)。
-2. 导入 `xhs-batch-actions.user.js`（油猴 → 实用工具 → 导入），或新建脚本粘贴内容。
+2. 添加 `xhs-batch-actions.user.js`：
+   - 在 [Greasy Fork](https://greasyfork.org/zh-CN/scripts/605739) 脚本页点「安装此脚本」（最省事），**或**
+   - 油猴 → 管理面板 → 实用工具 → 导入（选择文件），**或**
+   - 新建脚本，粘贴 `xhs-batch-actions.user.js` 的内容。
 3. 打开已登录的小红书个人页 → 「收藏」或「点赞」，右下角出现**一个收起的小胶囊**。
    点击标题栏即可展开完整面板。每次打开页面都默认收起，不会一上来就挡住内容。
 
