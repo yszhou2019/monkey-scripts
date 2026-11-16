@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         雅思词汇掌握度助手 · IELTS Vocab Tracker
 // @namespace    https://www.leonwang.cc/ielts-vocab/
-// @version      2.10.0
+// @version      2.11.0
 // @description  为 leonwang.cc 雅思词汇卡片增加可配置分组标记、分组筛选、WebDAV（坚果云）多端同步、本单元与全站熟悉度进度条、深色主题；单词详情默认隐藏中文、只留英文例句，状态可导出 / 导入 JSON。
 // @match        https://www.leonwang.cc/ielts-vocab/*
 // @run-at       document-start
@@ -207,6 +207,7 @@
     }
     html[data-vb-theme="dark"] .vb-sync-field input:focus,
     html[data-vb-theme="dark"] .vb-sync-field select:focus { border-color: #5aaee6; }
+    html[data-vb-theme="dark"] .vb-sync-boot { color: #aab6bf; }
     html[data-vb-theme="dark"] .vb-sync-primary { background: #1d3a4d; border-color: #5aaee6; color: #7cc4f0; }
     html[data-vb-theme="dark"] .vb-sync-primary:hover { border-color: #7cc4f0; color: #a9d9f7; }
     html[data-vb-theme="dark"] .vb-sync-status { color: #8b98a3; }
@@ -369,14 +370,17 @@
   function getSyncConfig(data) {
     const settings = (data && data.settings) || {};
     const raw = settings.sync && typeof settings.sync === 'object' ? settings.sync : {};
-    const freq = ['1', '5', '15'].includes(raw.freq)
-      ? raw.freq
-      : (raw.auto ? '1' : 'manual');
+    const rawFreq = String(raw.freq == null ? '' : raw.freq);
+    let freq;
+    if (rawFreq === '0' || rawFreq === 'manual') freq = '0';
+    else if (['1', '5', '15'].includes(rawFreq)) freq = rawFreq;
+    else freq = raw.auto ? '1' : '0';
     return {
       url: String(raw.url || '').trim(),
       user: String(raw.user || '').trim(),
       pass: String(raw.pass || ''),
       freq,
+      bootSync: typeof raw.bootSync === 'boolean' ? raw.bootSync : raw.auto !== false,
       lastAt: typeof raw.lastAt === 'string' ? raw.lastAt : '',
       lastStatus: typeof raw.lastStatus === 'string' ? raw.lastStatus : '',
     };
@@ -589,6 +593,7 @@
         user: cfg.user,
         pass: cfg.pass,
         freq: cfg.freq,
+        bootSync: cfg.bootSync,
         lastAt: new Date().toISOString(),
         lastStatus: 'ok',
       };
@@ -612,7 +617,7 @@
 
   function scheduleAutoSync(delay) {
     const cfg = getSyncConfig(readStore());
-    if (cfg.freq === 'manual' || !cfg.url || syncBusy) return;
+    if (cfg.freq === '0' || !cfg.url || syncBusy) return;
     clearTimeout(autoTimer);
     autoTimer = setTimeout(() => {
       autoTimer = null;
@@ -646,7 +651,7 @@
     if (!cfg.url || !(minutes > 0)) return;
     autoInterval = setInterval(() => {
       const current = getSyncConfig(readStore());
-      if (current.freq === 'manual' || !current.url) {
+      if (current.freq === '0' || !current.url) {
         stopAutoInterval();
         return;
       }
@@ -659,8 +664,9 @@
 
   function autoSyncOnBoot() {
     const cfg = getSyncConfig(readStore());
-    if (cfg.freq === 'manual' || !cfg.url) return;
-    applyAutoInterval();
+    if (!cfg.url) return;
+    if (cfg.freq !== '0') applyAutoInterval();
+    if (!cfg.bootSync) return;
     lastAutoSyncAt = Date.now();
     setTimeout(() => {
       runSync('both', { quiet: true })
@@ -1217,6 +1223,11 @@
       }
       .vb-sync-field input:focus,
       .vb-sync-field select:focus { outline: none; border-color: #3498db; }
+      .vb-sync-boot {
+        display: flex; align-items: center; gap: 6px;
+        margin: 10px 2px 0; font-size: .75rem; color: #576574; cursor: pointer;
+      }
+      .vb-sync-boot input { margin: 0; }
       .vb-sync-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
       .vb-sync-actions .vb-mini { padding: 5px 10px; }
       .vb-sync-actions .vb-mini:disabled { opacity: .5; cursor: default; }
@@ -1395,22 +1406,23 @@
             <label class="vb-sync-field">应用密码
               <input type="password" id="vbSyncPass" autocomplete="new-password">
             </label>
-          </div>
-          <label class="vb-sync-field">同步频率
+            <label class="vb-sync-field">同步频率
               <select id="vbSyncFreq">
-                <option value="manual">手动同步（只点按钮）</option>
+                <option value="0">0 分钟 · 不自动同步</option>
                 <option value="1">每 1 分钟</option>
                 <option value="5">每 5 分钟</option>
                 <option value="15">每 15 分钟</option>
               </select>
             </label>
+          </div>
+          <label class="vb-sync-boot"><input type="checkbox" id="vbBootSync"> 刷新页面后自动同步一次</label>
           <div class="vb-sync-actions">
             <button type="button" class="vb-mini vb-sync-primary" id="vbSyncNow">立即同步</button>
             <button type="button" class="vb-mini" id="vbSyncPull">仅下载</button>
             <button type="button" class="vb-mini" id="vbSyncPush">覆盖上传</button>
           </div>
           <div class="vb-sync-status" id="vbSyncStatus"></div>
-          <div class="vb-sync-note">坚果云请用「应用密码」而非登录密码；自动模式会在打开页面时同步、改动后上传，并按所选频率拉取云端更新，手动模式只在点按钮时同步。配置只存本机，不会写入导出的 JSON。首次使用先在坚果云里建好文件夹。</div>
+          <div class="vb-sync-note">坚果云请用「应用密码」而非登录密码；频率选 0 分钟时不做定时或改动同步，只在点按钮时同步；「刷新页面后自动同步一次」与频率互不影响。配置只存本机，不会写入导出的 JSON。首次使用先在坚果云里建好文件夹。</div>
         </div>
         <div class="vb-settings-foot">
           <button type="button" class="vb-mini" id="vbAddGroup">＋ 新建分组</button>
@@ -1444,6 +1456,7 @@
     const syncUserInput = settingsModal.querySelector('#vbSyncUser');
     const syncPassInput = settingsModal.querySelector('#vbSyncPass');
     const syncFreqInput = settingsModal.querySelector('#vbSyncFreq');
+    const syncBootInput = settingsModal.querySelector('#vbBootSync');
     const syncStatusEl = settingsModal.querySelector('#vbSyncStatus');
     const syncButtons = ['#vbSyncNow', '#vbSyncPull', '#vbSyncPush']
       .map((selector) => settingsModal.querySelector(selector));
@@ -1455,6 +1468,7 @@
         user: cfg.user,
         pass: cfg.pass,
         freq: cfg.freq,
+        bootSync: cfg.bootSync,
         lastAt: cfg.lastAt,
         lastStatus: cfg.lastStatus,
       };
@@ -1485,12 +1499,14 @@
       syncUserInput.value = cfg.user;
       syncPassInput.value = cfg.pass;
       syncFreqInput.value = cfg.freq;
+      syncBootInput.checked = cfg.bootSync;
       updateSyncStatus();
     }
 
     function setSyncBusyUI(busy) {
       syncButtons.forEach((btn) => { btn.disabled = busy; });
       syncFreqInput.disabled = busy;
+      syncBootInput.disabled = busy;
     }
 
     async function manualSync(mode) {
@@ -1520,8 +1536,11 @@
     syncFreqInput.addEventListener('change', () => {
       storeSyncConfig({ freq: syncFreqInput.value });
       applyAutoInterval();
-      if (syncFreqInput.value !== 'manual') scheduleAutoSync(500);
+      if (syncFreqInput.value !== '0') scheduleAutoSync(500);
       updateSyncStatus();
+    });
+    syncBootInput.addEventListener('change', () => {
+      storeSyncConfig({ bootSync: syncBootInput.checked });
     });
 
     syncButtons[0].addEventListener('click', () => manualSync('both'));
