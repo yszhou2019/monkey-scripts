@@ -178,6 +178,26 @@
 
 ---
 
+## Buy Me a Coffee · 打赏
+
+如果这个脚本帮你省了一点整理收藏的时间，欢迎扫码请我喝杯咖啡。
+
+<img src="../images/donate-wechat.jpg" alt="微信支付收款码" width="280">
+
+**微信支付 · WeChat Pay**
+
+<img src="../images/donate-alipay.jpg" alt="支付宝收款码" width="280">
+
+**支付宝 · Alipay**
+
+---
+
+## 许可证
+
+[MIT](../LICENSE) · Copyright (c) 2026 yszhou2019
+
+---
+
 ## 免责声明
 
 仅供**个人使用**。使用风险自负；批量操作可能触发限流或临时限制。复用导出文本时请尊重

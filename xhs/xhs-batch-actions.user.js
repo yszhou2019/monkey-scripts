@@ -1,9 +1,12 @@
 // ==UserScript==
 // @name         小红书批量操作助手 · XHS Batch Actions
 // @namespace    https://github.com/yszhou2019/monkey-scripts
-// @version      3.5.0
+// @version      3.5.1
 // @description  统一的小红书批量工具：一套标注交互 + 三种动作（批量导出文本[只读] / 批量取消收藏[写] / 批量取消点赞[写，占位]）。所有写操作执行前必须经对话框确认。
-// @author       you
+// @author       yszhou2019
+// @license      MIT
+// @homepageURL  https://github.com/yszhou2019/monkey-scripts
+// @supportURL   https://github.com/yszhou2019/monkey-scripts/issues
 // @match        https://www.xiaohongshu.com/*
 // @grant        none
 // @run-at       document-idle

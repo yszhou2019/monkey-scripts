@@ -199,6 +199,26 @@ your marks or note content.
 
 ---
 
+## Buy Me a Coffee · 打赏
+
+If this script saved you some time cleaning up your collections, you can buy me a coffee.
+
+<img src="../images/donate-wechat.jpg" alt="WeChat Pay donation QR code" width="280">
+
+**微信支付 · WeChat Pay**
+
+<img src="../images/donate-alipay.jpg" alt="Alipay donation QR code" width="280">
+
+**支付宝 · Alipay**
+
+---
+
+## License
+
+[MIT](../LICENSE) · Copyright (c) 2026 yszhou2019
+
+---
+
 ## Disclaimer
 
 For **personal use only**. Use at your own risk; bulk operations may trigger rate limits or
