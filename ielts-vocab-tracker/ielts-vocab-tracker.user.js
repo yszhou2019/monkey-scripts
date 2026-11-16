@@ -1,8 +1,11 @@
 // ==UserScript==
 // @name         雅思词汇掌握度助手 · IELTS Vocab Tracker
 // @namespace    https://www.leonwang.cc/ielts-vocab/
-// @version      2.11.1
+// @version      2.12.0
 // @description  为 leonwang.cc 雅思词汇卡片增加可配置分组标记、分组筛选、WebDAV（坚果云）多端同步、本单元与全站熟悉度进度条、深色主题；单词详情默认隐藏中文、只留英文例句，状态可导出 / 导入 JSON。
+// @license      MIT
+// @homepageURL  https://github.com/yszhou2019/monkey-scripts
+// @supportURL   https://github.com/yszhou2019/monkey-scripts/issues
 // @match        https://www.leonwang.cc/ielts-vocab/*
 // @run-at       document-start
 // @grant        GM_xmlhttpRequest
@@ -285,9 +288,11 @@
   const STORE_KEY = 'ielts-vocab-bag.v1';
   const CHAPTER_COUNT = 22;
   const TOTALS_KEY = 'ielts-vocab-tracker.totals.v1';
+  // 删除墓碑保留 90 天，足够覆盖离线设备的合并窗口
+  const DELETION_TTL_MS = 90 * 24 * 60 * 60 * 1000;
 
   function emptyStore() {
-    return { version: 1, updatedAt: '', settings: {}, chapters: {} };
+    return { version: 2, updatedAt: '', settings: {}, chapters: {}, deleted: {} };
   }
 
   function readStore() {
@@ -299,6 +304,8 @@
       data.chapters = data.chapters && typeof data.chapters === 'object' ? data.chapters : {};
       data.settings = data.settings && typeof data.settings === 'object' ? data.settings : {};
       data.settings.groups = normalizeGroups(data.settings.groups);
+      data.deleted = data.deleted && typeof data.deleted === 'object' ? data.deleted : {};
+      pruneDeletions(data);
       return data;
     } catch (e) {
       console.warn('[词汇追踪] 读取本地数据失败', e);
@@ -306,9 +313,39 @@
     }
   }
 
+  function recordDeletion(data, chapterId, word) {
+    if (!data.deleted) data.deleted = {};
+    if (!data.deleted[chapterId]) data.deleted[chapterId] = {};
+    data.deleted[chapterId][word] = new Date().toISOString();
+  }
+
+  function clearDeletion(data, chapterId, word) {
+    const bag = data.deleted && data.deleted[chapterId];
+    if (!bag || !bag[word]) return;
+    delete bag[word];
+    if (!Object.keys(bag).length) delete data.deleted[chapterId];
+  }
+
+  function pruneDeletions(data) {
+    if (!data.deleted) return;
+    const cutoff = Date.now() - DELETION_TTL_MS;
+    Object.keys(data.deleted).forEach((chapterId) => {
+      const bag = data.deleted[chapterId];
+      if (!bag || typeof bag !== 'object') {
+        delete data.deleted[chapterId];
+        return;
+      }
+      Object.keys(bag).forEach((word) => {
+        if (stampOf(bag[word]) < cutoff) delete bag[word];
+      });
+      if (!Object.keys(bag).length) delete data.deleted[chapterId];
+    });
+  }
+
   let storeWriteHook = null;
 
   function writeStore(data) {
+    pruneDeletions(data);
     data.updatedAt = new Date().toISOString();
     try {
       localStorage.setItem(STORE_KEY, JSON.stringify(data));
@@ -442,13 +479,14 @@
     };
   }
 
-  function buildSyncPayload(chapters, groups) {
+  function buildSyncPayload(chapters, groups, deleted) {
     return {
       app: 'ielts-vocab-tracker',
-      version: 2,
+      version: 3,
       syncedAt: new Date().toISOString(),
       settings: { groups: groups || [] },
       chapters: chapters || {},
+      deleted: deleted || {},
     };
   }
 
@@ -465,12 +503,13 @@
     return {
       groups: data.settings && Array.isArray(data.settings.groups) ? data.settings.groups : [],
       chapters: data.chapters,
+      deleted: data.deleted && typeof data.deleted === 'object' ? data.deleted : {},
     };
   }
 
   // 按单词合并：两边都有时取 updatedAt 较新的一份，分组定义同样按时间取新
   function mergeSyncData(local, remote) {
-    const stats = { added: 0, changed: 0 };
+    const stats = { added: 0, changed: 0, deleted: 0 };
     const localGroups = normalizeGroups(local.settings.groups);
     const remoteGroups = remote.groups && remote.groups.length ? normalizeGroups(remote.groups) : [];
     const byId = new Map(localGroups.map((group) => [group.id, group]));
@@ -494,39 +533,70 @@
     const groups = order.map((id) => byId.get(id)).filter(Boolean);
     const groupIds = new Set(groups.map((group) => group.id));
 
+    const localDeleted = local.deleted && typeof local.deleted === 'object' ? local.deleted : {};
+    const remoteDeleted = remote.deleted && typeof remote.deleted === 'object' ? remote.deleted : {};
+
     const chapters = {};
-    const chapterIds = new Set(Object.keys(local.chapters).concat(Object.keys(remote.chapters)));
+    const deleted = {};
+    const chapterIds = new Set(
+      Object.keys(local.chapters)
+        .concat(Object.keys(remote.chapters))
+        .concat(Object.keys(localDeleted))
+        .concat(Object.keys(remoteDeleted))
+    );
     chapterIds.forEach((chapterId) => {
       const localBag = local.chapters[chapterId] && typeof local.chapters[chapterId] === 'object'
         ? local.chapters[chapterId] : {};
       const remoteBag = remote.chapters[chapterId] && typeof remote.chapters[chapterId] === 'object'
         ? remote.chapters[chapterId] : {};
+      const localTombs = localDeleted[chapterId] && typeof localDeleted[chapterId] === 'object'
+        ? localDeleted[chapterId] : {};
+      const remoteTombs = remoteDeleted[chapterId] && typeof remoteDeleted[chapterId] === 'object'
+        ? remoteDeleted[chapterId] : {};
       const bag = {};
-      const words = new Set(Object.keys(localBag).concat(Object.keys(remoteBag)));
+      const tombs = {};
+      const words = new Set(
+        Object.keys(localBag)
+          .concat(Object.keys(remoteBag))
+          .concat(Object.keys(localTombs))
+          .concat(Object.keys(remoteTombs))
+      );
       words.forEach((word) => {
         const mine = localBag[word];
         const theirs = remoteBag[word];
         let pick = mine;
         if (!mine) {
           pick = theirs;
-          stats.added += 1;
         } else if (theirs && entryStamp(theirs) > entryStamp(mine)) {
           pick = theirs;
-          stats.changed += 1;
+        }
+
+        // 墓碑比任何一份记录都新时，删除生效；同毫秒按保留处理，避免重新标记被误删
+        const tombStamp = Math.max(stampOf(localTombs[word]), stampOf(remoteTombs[word]));
+        if (tombStamp && tombStamp > entryStamp(pick)) {
+          tombs[word] = new Date(tombStamp).toISOString();
+          if (pick) stats.deleted += 1;
+          return;
         }
         if (!pick) return;
         const entry = normalizeSyncEntry(pick, word);
         if (!groupIds.has(entry.group)) entry.group = 'known';
         bag[word] = entry;
+        if (!mine) stats.added += 1;
+        else if (pick !== mine) stats.changed += 1;
       });
-      chapters[chapterId] = bag;
+      if (bag && (Object.keys(bag).length || local.chapters[chapterId] || remote.chapters[chapterId])) {
+        chapters[chapterId] = bag;
+      }
+      if (Object.keys(tombs).length) deleted[chapterId] = tombs;
     });
 
     return {
       store: {
-        version: local.version || 1,
+        version: local.version || 2,
         settings: Object.assign({}, local.settings, { groups }),
         chapters,
+        deleted,
       },
       stats,
     };
@@ -581,7 +651,7 @@
       if (mode !== 'push') writeStore(next);
 
       if (mode === 'both' || mode === 'push') {
-        const payload = buildSyncPayload(next.chapters, next.settings.groups);
+        const payload = buildSyncPayload(next.chapters, next.settings.groups, next.deleted);
         const res = await davRequest(
           'PUT',
           cfg.url,
@@ -607,7 +677,7 @@
       document.dispatchEvent(new CustomEvent('vb-sync-done', { detail: { mode, stats: merged.stats } }));
 
       if (!opts.quiet) {
-        const changed = merged.stats.added + merged.stats.changed;
+        const changed = merged.stats.added + merged.stats.changed + merged.stats.deleted;
         showToast(mode === 'push'
           ? '已覆盖上传到云端'
           : (changed ? `同步完成，更新 ${changed} 条` : '同步完成，没有新变化'));
@@ -897,7 +967,7 @@
     return entry.status === 'pron' ? 'pron' : 'known';
   }
 
-  function mergeChapters(target, source) {
+  function mergeChapters(target, source, deletions) {
     let added = 0;
     Object.keys(source).forEach((chapterId) => {
       const words = source[chapterId];
@@ -915,6 +985,11 @@
           updatedAt: value.updatedAt || value.addedAt || new Date().toISOString(),
           group: entryGroup(value),
         };
+        // 用户主动导入视为重新标记，清掉本地墓碑
+        if (deletions && deletions[chapterId] && deletions[chapterId][key]) {
+          delete deletions[chapterId][key];
+          if (!Object.keys(deletions[chapterId]).length) delete deletions[chapterId];
+        }
         added += 1;
       });
     });
@@ -1683,7 +1758,9 @@
       Object.keys(store.chapters).forEach((chapterId) => {
         const bag = store.chapters[chapterId];
         Object.keys(bag).forEach((word) => {
-          if (entryGroup(bag[word]) === group.id) delete bag[word];
+          if (entryGroup(bag[word]) !== group.id) return;
+          delete bag[word];
+          recordDeletion(store, chapterId, word);
         });
       });
       store.settings.groups = getGroups().filter((item) => item.id !== group.id);
@@ -1932,6 +2009,7 @@
 
       if (current === groupId) {
         delete bag[word];
+        recordDeletion(store, chapterId, word);
         showToast(`已取消标记：${word}`);
       } else {
         const posEl = card.querySelector('.pos');
@@ -1944,6 +2022,7 @@
           updatedAt: new Date().toISOString(),
           group: groupId,
         };
+        clearDeletion(store, chapterId, word);
         showToast(`已标记为${group.name}：${word}`);
       }
       writeStore(store);
@@ -2062,6 +2141,7 @@
       const bag = getBag(chapterId);
       if (bag[word]) {
         delete bag[word];
+        recordDeletion(store, chapterId, word);
         writeStore(store);
         applyFilter();
         renderPanel();
@@ -2078,6 +2158,9 @@
         return;
       }
       if (!confirm(`确定清空「${chapterTitle(chapterId)}」的 ${count} 个标记？`)) return;
+      Object.keys(store.chapters[chapterId] || {}).forEach((word) => {
+        recordDeletion(store, chapterId, word);
+      });
       delete store.chapters[chapterId];
       writeStore(store);
       applyFilter();
@@ -2249,7 +2332,7 @@
           const knownIds = new Set(data.settings.groups.map((group) => group.id));
           const extra = normalizeGroups(payload.groups).filter((group) => !knownIds.has(group.id));
           data.settings.groups = normalizeGroups(data.settings.groups.concat(extra));
-          const added = mergeChapters(data.chapters, payload.chapters);
+          const added = mergeChapters(data.chapters, payload.chapters, data.deleted);
           writeStore(data);
           render();
           showToast(added ? `导入完成，新增 ${added} 个单词` : '导入完成，没有新增单词');

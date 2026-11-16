@@ -187,6 +187,9 @@ is configured; the manual buttons are always available.
   remote-only groups are appended.
 - **Offline edits:** timestamps are stored per word, so two devices editing different words
   do not overwrite each other.
+- **Deletions:** unmarking records a timestamped tombstone, so the removal reaches the other
+  devices instead of being merged back. Re-marking a word wins if it is newer than the
+  tombstone, and tombstones expire after 90 days.
 
 ### Privacy
 
@@ -195,13 +198,6 @@ is configured; the manual buttons are always available.
 - Requests go only to the WebDAV URL you configure, with HTTP Basic auth, so use an HTTPS
   address. The script asks for `@connect *` because WebDAV hosts are arbitrary.
 - Clearing site data removes the credentials too.
-
-### Known limitation
-
-Deletions are not propagated by merge: unmarking a word removes it locally, but if the cloud
-file (or another device) still has it, the next merge brings it back. To remove a word
-everywhere, unmark it on the device that syncs last, or use `覆盖上传` from a cleaned-up
-device. Timestamped tombstones are not implemented yet.
 
 ---
 
@@ -240,13 +236,18 @@ kept so marks made before the rename survive). Nothing is uploaded unless you en
         "group": "known"
       }
     }
-  }
+  },
+  "deleted": {}
 }
 ```
 
+`deleted` holds the timestamped tombstones used by sync (one entry per removed word) and is
+pruned after 90 days.
+
 `导出` wraps the chapters and groups in an envelope with `app`, `version`, `exportedAt`, and
-`chapterTitles` for friendly names; the `sync` block (credentials included) is deliberately
-left out. Import **merges**: existing words and groups are kept, new ones are added.
+`chapterTitles` for friendly names; the `sync` block (credentials included) and the deletion
+tombstones are deliberately left out. Import **merges**: existing words and groups are kept,
+new ones are added — a backup therefore restores marks but does not delete anything.
 
 Two more local keys are used, neither of which is user content:
 
@@ -300,6 +301,12 @@ prefer — WeChat Pay or Alipay.
 | `ielts-vocab-tracker.user.js` | The main userscript. Install this. |
 | `README.md` | This file (English). |
 | `README.zh.md` | 中文说明。 |
+
+---
+
+## License
+
+MIT — see [LICENSE](../LICENSE).
 
 ---
 
