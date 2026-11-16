@@ -1377,8 +1377,12 @@
         .vb-panel { top: 64px; right: 8px; left: 8px; bottom: 84px; width: auto; max-width: none; }
         .vb-settings { padding: 12px; align-items: flex-start; }
         .vb-settings-card { margin-top: 48px; max-height: calc(100vh - 96px); }
-        /* 手机：详情卡按内容高度显示，最多占 86% 屏高，剩下的顶部区域可点按关闭 */
-        .overlay-content { height: auto; max-height: 86vh; max-height: 86dvh; }
+        /* 手机：保持卡片顶部位置不变，只把高度压到内容高度（最多 86% 屏高），底部留白可点按关闭 */
+        .overlay { align-items: flex-start; padding-top: 12px; box-sizing: border-box; }
+        .overlay-content {
+          height: auto; max-height: 86vh; max-height: 86dvh;
+          border-radius: 14px;
+        }
       }
     `;
     document.head.appendChild(style);
