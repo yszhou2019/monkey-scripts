@@ -1399,7 +1399,7 @@
     syncBtn.id = 'vbSyncBtn';
     syncBtn.title = '立即同步（WebDAV）';
     syncBtn.setAttribute('aria-label', '立即同步');
-    syncBtn.innerHTML = '<span class="vb-sync-glyph">☁</span> 同步';
+    syncBtn.innerHTML = '<span class="vb-sync-glyph">☁</span>';
 
     const settingsBtn = document.createElement('button');
     settingsBtn.type = 'button';
