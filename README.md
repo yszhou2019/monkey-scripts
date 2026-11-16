@@ -25,12 +25,13 @@ button per action.
 
 ### IELTS Vocab Tracker — Familiarity Marking for IELTS Vocabulary
 
-Mark words you already know on the leonwang.cc IELTS vocabulary handout, filter the grid
-down to the ones still unknown, and track progress per chapter — or across every chapter on
-the spelling practice page, which also hosts the JSON export / import controls. The detail
-popup hides Chinese by default for self-testing, and a low-glare dark theme is included.
+Mark words into configurable groups on the leonwang.cc IELTS vocabulary handout, filter the
+grid down to the ones still unknown, and track progress per chapter — or across every chapter
+on the spelling practice page, which also hosts the JSON export / import controls. Marks sync
+between devices through WebDAV (Nutstore by default), the detail popup hides Chinese by
+default for self-testing, and a low-glare dark theme is included.
 
-![The IELTS vocabulary grid with a filter bar and per-chapter progress bar above it. Some cards are greyed out with a green check to show they are marked as known.](images/script-ielts-tracker.png)
+![The IELTS vocabulary grid with a filter bar and per-chapter progress bar above it. Some cards keep their place but are tinted with their group colour.](images/script-ielts-tracker.png)
 
 - Docs: [English](ielts-vocab-tracker/README.md) · [中文](ielts-vocab-tracker/README.zh.md)
 - Install: [`ielts-vocab-tracker/ielts-vocab-tracker.user.js`](ielts-vocab-tracker/ielts-vocab-tracker.user.js)
@@ -39,5 +40,6 @@ popup hides Chinese by default for self-testing, and a low-glare dark theme is i
 
 ## Disclaimer
 
-For **personal use only**. Use at your own risk; bulk operations may trigger rate limits
-or temporary restrictions on your account.
+The Xiaohongshu batch script is for **personal use only**; bulk operations may trigger rate
+limits or temporary restrictions on your account. The IELTS tracker is unofficial and not
+affiliated with leonwang.cc — use it at your own risk.
