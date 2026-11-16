@@ -1,11 +1,12 @@
 // ==UserScript==
 // @name         雅思词汇掌握度助手 · IELTS Vocab Tracker
 // @namespace    https://www.leonwang.cc/ielts-vocab/
-// @version      2.8.0
-// @description  为 leonwang.cc 雅思词汇卡片增加可配置分组标记（默认“认识”与“发音待练”）、分组筛选、本单元与全站熟悉度进度条、深色主题；单词详情默认隐藏中文、只留英文例句，状态可导出 / 导入 JSON。
+// @version      2.9.0
+// @description  为 leonwang.cc 雅思词汇卡片增加可配置分组标记、分组筛选、WebDAV（坚果云）多端同步、本单元与全站熟悉度进度条、深色主题；单词详情默认隐藏中文、只留英文例句，状态可导出 / 导入 JSON。
 // @match        https://www.leonwang.cc/ielts-vocab/*
 // @run-at       document-start
-// @grant        none
+// @grant        GM_xmlhttpRequest
+// @connect      *
 // ==/UserScript==
 
 (function () {
@@ -198,6 +199,18 @@
     html[data-vb-theme="dark"] .vb-group-del { color: #93a0aa; }
     html[data-vb-theme="dark"] .vb-settings-foot { border-top-color: #2a333c; }
     html[data-vb-theme="dark"] .vb-settings-note { color: #8b98a3; }
+    html[data-vb-theme="dark"] .vb-settings-sub { color: #8b98a3; }
+    html[data-vb-theme="dark"] .vb-sync-field { color: #aab6bf; }
+    html[data-vb-theme="dark"] .vb-sync-field input {
+      background: #1f282f; border-color: #303a44; color: #dce5ec;
+    }
+    html[data-vb-theme="dark"] .vb-sync-field input:focus { border-color: #5aaee6; }
+    html[data-vb-theme="dark"] .vb-sync-auto { color: #aab6bf; }
+    html[data-vb-theme="dark"] .vb-sync-primary { background: #1d3a4d; border-color: #5aaee6; color: #7cc4f0; }
+    html[data-vb-theme="dark"] .vb-sync-primary:hover { border-color: #7cc4f0; color: #a9d9f7; }
+    html[data-vb-theme="dark"] .vb-sync-status { color: #8b98a3; }
+    html[data-vb-theme="dark"] .vb-sync-status.error { color: #f08a7a; }
+    html[data-vb-theme="dark"] .vb-sync-note { color: #7f8c99; }
   `;
 
   function loadThemeMode() {
@@ -291,6 +304,8 @@
     }
   }
 
+  let storeWriteHook = null;
+
   function writeStore(data) {
     data.updatedAt = new Date().toISOString();
     try {
@@ -298,6 +313,7 @@
     } catch (e) {
       console.warn('[词汇追踪] 保存失败（可能是浏览器禁用了本地存储）', e);
     }
+    if (storeWriteHook) storeWriteHook(data);
   }
 
   // 2026-11 的章节词数快照，仅在读不到站点缓存时兜底
@@ -342,6 +358,282 @@
     if (current.counts[chapterId] === total) return;
     current.counts[chapterId] = total;
     writeTotals(current.cacheName, current.counts);
+  }
+
+  // ===================== WebDAV 同步（坚果云之类） =====================
+  const SYNC_TIMEOUT = 20000;
+  const AUTO_SYNC_DELAY = 2500;
+  const AUTO_SYNC_MIN_GAP = 4000;
+
+  function getSyncConfig(data) {
+    const settings = (data && data.settings) || {};
+    const raw = settings.sync && typeof settings.sync === 'object' ? settings.sync : {};
+    return {
+      url: String(raw.url || '').trim(),
+      user: String(raw.user || '').trim(),
+      pass: String(raw.pass || ''),
+      auto: !!raw.auto,
+      lastAt: typeof raw.lastAt === 'string' ? raw.lastAt : '',
+      lastStatus: typeof raw.lastStatus === 'string' ? raw.lastStatus : '',
+    };
+  }
+
+  function stampOf(value) {
+    const t = Date.parse(value || '');
+    return Number.isNaN(t) ? 0 : t;
+  }
+
+  function entryStamp(entry) {
+    return entry ? Math.max(stampOf(entry.updatedAt), stampOf(entry.addedAt)) : 0;
+  }
+
+  function toBasicAuth(user, pass) {
+    const bytes = new TextEncoder().encode(`${user}:${pass}`);
+    let bin = '';
+    for (let i = 0; i < bytes.length; i += 1) bin += String.fromCharCode(bytes[i]);
+    return `Basic ${btoa(bin)}`;
+  }
+
+  // 页面直接 fetch WebDAV 会被 CORS 拦截，脚本管理器里走 GM_xmlhttpRequest
+  function davRequest(method, url, headers, body) {
+    return new Promise((resolve, reject) => {
+      if (typeof GM_xmlhttpRequest === 'function') {
+        GM_xmlhttpRequest({
+          method,
+          url,
+          headers,
+          data: body,
+          timeout: SYNC_TIMEOUT,
+          onload: (res) => resolve({ status: res.status, text: res.responseText || '' }),
+          onerror: () => reject(new Error('网络错误，检查地址和网络连接')),
+          ontimeout: () => reject(new Error('请求超时')),
+        });
+        return;
+      }
+      fetch(url, { method, headers, body, cache: 'no-store' })
+        .then(async (res) => resolve({ status: res.status, text: await res.text() }))
+        .catch(() => reject(new Error('无法连接：页面直连被 CORS 拦截，请在 Tampermonkey / Violentmonkey 中使用')));
+    });
+  }
+
+  function normalizeSyncEntry(entry, key) {
+    const addedAt = entry.addedAt || new Date().toISOString();
+    return {
+      word: String(entry.word || key),
+      pos: String(entry.pos || ''),
+      meaning: String(entry.meaning || ''),
+      addedAt,
+      updatedAt: entry.updatedAt || addedAt,
+      group: entryGroup(entry) || 'known',
+    };
+  }
+
+  function buildSyncPayload(chapters, groups) {
+    return {
+      app: 'ielts-vocab-tracker',
+      version: 2,
+      syncedAt: new Date().toISOString(),
+      settings: { groups: groups || [] },
+      chapters: chapters || {},
+    };
+  }
+
+  function parseSyncPayload(text) {
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch (e) {
+      throw new Error('云端文件不是有效的 JSON');
+    }
+    if (!data || typeof data !== 'object' || !data.chapters || typeof data.chapters !== 'object') {
+      throw new Error('云端文件缺少 chapters 字段');
+    }
+    return {
+      groups: data.settings && Array.isArray(data.settings.groups) ? data.settings.groups : [],
+      chapters: data.chapters,
+    };
+  }
+
+  // 按单词合并：两边都有时取 updatedAt 较新的一份，分组定义同样按时间取新
+  function mergeSyncData(local, remote) {
+    const stats = { added: 0, changed: 0 };
+    const localGroups = normalizeGroups(local.settings.groups);
+    const remoteGroups = remote.groups && remote.groups.length ? normalizeGroups(remote.groups) : [];
+    const byId = new Map(localGroups.map((group) => [group.id, group]));
+    remoteGroups.forEach((group) => {
+      const mine = byId.get(group.id);
+      if (!mine) {
+        byId.set(group.id, group);
+        stats.changed += 1;
+      } else if (stampOf(group.updatedAt) > stampOf(mine.updatedAt)) {
+        Object.assign(mine, group);
+        stats.changed += 1;
+      }
+    });
+    const order = [];
+    const seen = new Set();
+    localGroups.concat(remoteGroups).forEach((group) => {
+      if (seen.has(group.id)) return;
+      seen.add(group.id);
+      order.push(group.id);
+    });
+    const groups = order.map((id) => byId.get(id)).filter(Boolean);
+    const groupIds = new Set(groups.map((group) => group.id));
+
+    const chapters = {};
+    const chapterIds = new Set(Object.keys(local.chapters).concat(Object.keys(remote.chapters)));
+    chapterIds.forEach((chapterId) => {
+      const localBag = local.chapters[chapterId] && typeof local.chapters[chapterId] === 'object'
+        ? local.chapters[chapterId] : {};
+      const remoteBag = remote.chapters[chapterId] && typeof remote.chapters[chapterId] === 'object'
+        ? remote.chapters[chapterId] : {};
+      const bag = {};
+      const words = new Set(Object.keys(localBag).concat(Object.keys(remoteBag)));
+      words.forEach((word) => {
+        const mine = localBag[word];
+        const theirs = remoteBag[word];
+        let pick = mine;
+        if (!mine) {
+          pick = theirs;
+          stats.added += 1;
+        } else if (theirs && entryStamp(theirs) > entryStamp(mine)) {
+          pick = theirs;
+          stats.changed += 1;
+        }
+        if (!pick) return;
+        const entry = normalizeSyncEntry(pick, word);
+        if (!groupIds.has(entry.group)) entry.group = 'known';
+        bag[word] = entry;
+      });
+      chapters[chapterId] = bag;
+    });
+
+    return {
+      store: {
+        version: local.version || 1,
+        settings: Object.assign({}, local.settings, { groups }),
+        chapters,
+      },
+      stats,
+    };
+  }
+
+  function syncHeaders(cfg) {
+    const headers = {};
+    if (cfg.user || cfg.pass) headers.Authorization = toBasicAuth(cfg.user, cfg.pass);
+    return headers;
+  }
+
+  function describeSyncError(res) {
+    if (res.status === 401 || res.status === 403) return '认证失败，请检查账号与应用密码';
+    if (res.status === 404) return '云端路径不存在：请先在坚果云里创建文件夹，并填写完整文件地址';
+    if (res.status === 409) return '云端目录不存在或存在冲突';
+    return `服务器返回 HTTP ${res.status}`;
+  }
+
+  let syncBusy = false;
+  let autoTimer = null;
+  let lastAutoSyncAt = 0;
+
+  async function runSync(mode, options) {
+    const opts = options || {};
+    if (syncBusy) throw new Error('同步正在进行');
+    const local = readStore();
+    const cfg = getSyncConfig(local);
+    if (!cfg.url) throw new Error('请先填写 WebDAV 文件地址');
+    if (!/^https?:\/\//i.test(cfg.url)) throw new Error('地址需要以 http:// 或 https:// 开头');
+
+    syncBusy = true;
+    clearTimeout(autoTimer);
+    autoTimer = null;
+    try {
+      let remote = null;
+      if (mode !== 'push') {
+        const res = await davRequest('GET', cfg.url, syncHeaders(cfg));
+        if (res.status === 200) {
+          remote = parseSyncPayload(res.text);
+        } else if (res.status === 404) {
+          if (mode === 'pull') throw new Error('云端还没有同步文件，请先上传一次');
+          remote = { groups: [], chapters: {} };
+        } else {
+          throw new Error(describeSyncError(res));
+        }
+      }
+
+      const merged = mode === 'push'
+        ? { store: local, stats: { added: 0, changed: 0 } }
+        : mergeSyncData(local, remote);
+      const next = merged.store;
+      if (mode !== 'push') writeStore(next);
+
+      if (mode === 'both' || mode === 'push') {
+        const payload = buildSyncPayload(next.chapters, next.settings.groups);
+        const res = await davRequest(
+          'PUT',
+          cfg.url,
+          Object.assign({ 'Content-Type': 'application/json; charset=utf-8' }, syncHeaders(cfg)),
+          JSON.stringify(payload),
+        );
+        if (res.status !== 200 && res.status !== 201 && res.status !== 204) {
+          throw new Error(describeSyncError(res));
+        }
+      }
+
+      const done = readStore();
+      done.settings.sync = {
+        url: cfg.url,
+        user: cfg.user,
+        pass: cfg.pass,
+        auto: cfg.auto,
+        lastAt: new Date().toISOString(),
+        lastStatus: 'ok',
+      };
+      writeStore(done);
+      document.dispatchEvent(new CustomEvent('vb-sync-done', { detail: { mode, stats: merged.stats } }));
+
+      if (!opts.quiet) {
+        const changed = merged.stats.added + merged.stats.changed;
+        showToast(mode === 'push'
+          ? '已覆盖上传到云端'
+          : (changed ? `同步完成，更新 ${changed} 条` : '同步完成，没有新变化'));
+      }
+      return merged.stats;
+    } catch (err) {
+      if (!opts.quiet) showToast(`同步失败：${err.message}`);
+      throw err;
+    } finally {
+      syncBusy = false;
+    }
+  }
+
+  function scheduleAutoSync(delay) {
+    const cfg = getSyncConfig(readStore());
+    if (!cfg.auto || !cfg.url || syncBusy) return;
+    clearTimeout(autoTimer);
+    autoTimer = setTimeout(() => {
+      autoTimer = null;
+      if (syncBusy) return;
+      const gap = Date.now() - lastAutoSyncAt;
+      if (gap < AUTO_SYNC_MIN_GAP) {
+        scheduleAutoSync(AUTO_SYNC_MIN_GAP - gap + 50);
+        return;
+      }
+      lastAutoSyncAt = Date.now();
+      runSync('both', { quiet: true })
+        .catch((err) => console.warn(`[词汇追踪] 自动同步失败：${err.message}`));
+    }, delay == null ? AUTO_SYNC_DELAY : delay);
+  }
+
+  storeWriteHook = () => scheduleAutoSync(AUTO_SYNC_DELAY);
+
+  function autoSyncOnBoot() {
+    const cfg = getSyncConfig(readStore());
+    if (!cfg.auto || !cfg.url) return;
+    lastAutoSyncAt = Date.now();
+    setTimeout(() => {
+      runSync('both', { quiet: true })
+        .catch((err) => console.warn(`[词汇追踪] 自动同步失败：${err.message}`));
+    }, 900);
   }
 
   // 站点 service worker 会预缓存全部章节数据，优先从这里统计，避免额外下载
@@ -544,6 +836,7 @@
         visible: item.visible !== false,
         counts: !!item.counts,
         color,
+        updatedAt: typeof item.updatedAt === 'string' ? item.updatedAt : '',
       });
     });
     if (!list.length) return DEFAULT_GROUPS.map((group) => Object.assign({}, group));
@@ -575,6 +868,7 @@
           pos: String(value.pos || ''),
           meaning: String(value.meaning || ''),
           addedAt: value.addedAt || new Date().toISOString(),
+          updatedAt: value.updatedAt || value.addedAt || new Date().toISOString(),
           group: entryGroup(value),
         };
         added += 1;
@@ -873,7 +1167,40 @@
         font-size: 1.1rem; cursor: pointer; padding: 2px 4px; border-radius: 6px;
       }
       .vb-settings-close:hover { background: #f0f3f5; color: #2c3e50; }
-      .vb-settings-list { flex: 1; overflow-y: auto; padding: 10px 12px; }
+      .vb-settings-scroll { flex: 1; overflow-y: auto; padding: 6px 12px 10px; }
+      .vb-settings-sub {
+        margin: 12px 4px 6px; font-size: .72rem; font-weight: 700;
+        color: #95a5a6; letter-spacing: .02em;
+      }
+      .vb-sync-grid { display: grid; gap: 8px; }
+      .vb-sync-field {
+        display: flex; flex-direction: column; gap: 4px;
+        font-size: .73rem; color: #576574;
+      }
+      .vb-sync-field input {
+        border: 1px solid #dfe6e9; background: #fff; border-radius: 8px;
+        font: inherit; font-size: .82rem; color: #2c3e50; padding: 6px 8px;
+        min-width: 0;
+      }
+      .vb-sync-field input:focus { outline: none; border-color: #3498db; }
+      .vb-sync-auto {
+        display: flex; align-items: center; gap: 6px;
+        margin: 10px 2px 0; font-size: .75rem; color: #576574; cursor: pointer;
+      }
+      .vb-sync-auto input { margin: 0; }
+      .vb-sync-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+      .vb-sync-actions .vb-mini { padding: 5px 10px; }
+      .vb-sync-actions .vb-mini:disabled { opacity: .5; cursor: default; }
+      .vb-sync-primary { border-color: #3498db; background: #eaf2f8; color: #2471a3; }
+      .vb-sync-primary:hover { border-color: #2471a3; color: #1b5c86; }
+      .vb-sync-status {
+        margin: 9px 2px 2px; font-size: .72rem; line-height: 1.5;
+        color: #7f8c8d; word-break: break-word;
+      }
+      .vb-sync-status.error { color: #c0392b; }
+      .vb-sync-note {
+        margin: 6px 2px 2px; font-size: .69rem; line-height: 1.55; color: #95a5a6;
+      }
       .vb-group-row {
         display: flex; align-items: center; gap: 8px;
         padding: 7px 8px; margin-bottom: 6px;
@@ -1025,7 +1352,30 @@
           <strong>⚙ 分组设置</strong>
           <button type="button" class="vb-settings-close" id="vbSettingsClose" title="关闭">✕</button>
         </div>
-        <div class="vb-settings-list" id="vbGroupList"></div>
+        <div class="vb-settings-scroll">
+          <div class="vb-settings-sub">分组 · 卡片按钮与筛选顺序一致</div>
+          <div id="vbGroupList"></div>
+          <div class="vb-settings-sub">云同步 · WebDAV（坚果云等）</div>
+          <div class="vb-sync-grid">
+            <label class="vb-sync-field">文件地址
+              <input type="url" id="vbSyncUrl" inputmode="url" spellcheck="false" autocomplete="off" placeholder="https://dav.jianguoyun.com/dav/IELTS/ielts-vocab-tracker.json">
+            </label>
+            <label class="vb-sync-field">账号
+              <input type="text" id="vbSyncUser" spellcheck="false" autocomplete="username">
+            </label>
+            <label class="vb-sync-field">应用密码
+              <input type="password" id="vbSyncPass" autocomplete="new-password">
+            </label>
+          </div>
+          <label class="vb-sync-auto"><input type="checkbox" id="vbSyncAuto"> 打开页面自动同步，改动后自动上传</label>
+          <div class="vb-sync-actions">
+            <button type="button" class="vb-mini vb-sync-primary" id="vbSyncNow">立即同步</button>
+            <button type="button" class="vb-mini" id="vbSyncPull">仅下载</button>
+            <button type="button" class="vb-mini" id="vbSyncPush">覆盖上传</button>
+          </div>
+          <div class="vb-sync-status" id="vbSyncStatus"></div>
+          <div class="vb-sync-note">坚果云请用「应用密码」而非登录密码；配置只存本机，不会写入导出的 JSON。首次使用先在坚果云里建好文件夹。</div>
+        </div>
         <div class="vb-settings-foot">
           <button type="button" class="vb-mini" id="vbAddGroup">＋ 新建分组</button>
           <span class="vb-settings-note">拖动 ⋮⋮ 调整顺序 · 卡片按钮与筛选同步</span>
@@ -1053,6 +1403,106 @@
       writeStore(store);
     }
 
+    // ===================== 云同步设置 =====================
+    const syncUrlInput = settingsModal.querySelector('#vbSyncUrl');
+    const syncUserInput = settingsModal.querySelector('#vbSyncUser');
+    const syncPassInput = settingsModal.querySelector('#vbSyncPass');
+    const syncAutoInput = settingsModal.querySelector('#vbSyncAuto');
+    const syncStatusEl = settingsModal.querySelector('#vbSyncStatus');
+    const syncButtons = ['#vbSyncNow', '#vbSyncPull', '#vbSyncPush']
+      .map((selector) => settingsModal.querySelector(selector));
+
+    function storeSyncConfig(patch) {
+      const cfg = Object.assign(getSyncConfig(store), patch);
+      store.settings.sync = {
+        url: cfg.url,
+        user: cfg.user,
+        pass: cfg.pass,
+        auto: cfg.auto,
+        lastAt: cfg.lastAt,
+        lastStatus: cfg.lastStatus,
+      };
+      writeStore(store);
+    }
+
+    function formatSyncTime(iso) {
+      const date = new Date(iso);
+      if (!iso || Number.isNaN(date.getTime())) return '';
+      return date.toLocaleString('zh-CN', { hour12: false });
+    }
+
+    function updateSyncStatus(message, isError) {
+      let text = message;
+      if (!text) {
+        const cfg = getSyncConfig(store);
+        if (!cfg.url) text = '未配置 · 填好地址后即可多端同步';
+        else if (cfg.lastAt) text = `上次同步：${formatSyncTime(cfg.lastAt)}`;
+        else text = '配置已保存，尚未同步';
+      }
+      syncStatusEl.textContent = text;
+      syncStatusEl.classList.toggle('error', !!isError);
+    }
+
+    function renderSyncSettings() {
+      const cfg = getSyncConfig(store);
+      syncUrlInput.value = cfg.url;
+      syncUserInput.value = cfg.user;
+      syncPassInput.value = cfg.pass;
+      syncAutoInput.checked = cfg.auto;
+      updateSyncStatus();
+    }
+
+    function setSyncBusyUI(busy) {
+      syncButtons.forEach((btn) => { btn.disabled = busy; });
+      syncAutoInput.disabled = busy;
+    }
+
+    async function manualSync(mode) {
+      setSyncBusyUI(true);
+      updateSyncStatus('同步中…');
+      try {
+        await runSync(mode);
+        updateSyncStatus();
+      } catch (err) {
+        updateSyncStatus(`同步失败：${err.message}`, true);
+      } finally {
+        setSyncBusyUI(false);
+      }
+    }
+
+    syncUrlInput.addEventListener('change', () => {
+      storeSyncConfig({ url: syncUrlInput.value.trim() });
+      updateSyncStatus();
+    });
+    syncUserInput.addEventListener('change', () => {
+      storeSyncConfig({ user: syncUserInput.value.trim() });
+    });
+    syncPassInput.addEventListener('change', () => {
+      storeSyncConfig({ pass: syncPassInput.value });
+    });
+    syncAutoInput.addEventListener('change', () => {
+      storeSyncConfig({ auto: syncAutoInput.checked });
+      if (syncAutoInput.checked) scheduleAutoSync(500);
+    });
+
+    syncButtons[0].addEventListener('click', () => manualSync('both'));
+    syncButtons[1].addEventListener('click', () => manualSync('pull'));
+    syncButtons[2].addEventListener('click', () => {
+      if (!confirm('用本机数据覆盖云端文件？其他设备上仅存在于云端的标记会丢失。')) return;
+      manualSync('push');
+    });
+
+    document.addEventListener('vb-sync-done', () => {
+      store = readStore();
+      renderFilterBar();
+      applyFilter();
+      renderPanel();
+      if (settingsModal.classList.contains('open')) {
+        renderGroupSettings();
+        renderSyncSettings();
+      }
+    });
+
     function refreshGroupUI() {
       if (currentFilter !== 'all' && currentFilter !== 'unknown') {
         const group = findGroup(currentFilter);
@@ -1065,6 +1515,7 @@
 
     function openSettings() {
       renderGroupSettings();
+      renderSyncSettings();
       settingsModal.classList.add('open');
     }
 
@@ -1092,6 +1543,7 @@
         visible: true,
         counts: false,
         color,
+        updatedAt: new Date().toISOString(),
       });
       saveGroups();
       renderGroupSettings();
@@ -1110,6 +1562,7 @@
       } else {
         return;
       }
+      group.updatedAt = new Date().toISOString();
       saveGroups();
       refreshGroupUI();
     });
@@ -1120,6 +1573,7 @@
       if (!group) return;
       if (e.target.matches('.vb-group-counts input')) {
         group.counts = e.target.checked;
+        group.updatedAt = new Date().toISOString();
         saveGroups();
         applyFilter();
         renderPanel();
@@ -1136,6 +1590,7 @@
       if (!group) return;
       if (e.target.closest('.vb-group-eye')) {
         group.visible = !group.visible;
+        group.updatedAt = new Date().toISOString();
         saveGroups();
         renderGroupSettings();
         refreshGroupUI();
@@ -1416,6 +1871,7 @@
           pos: (prev && prev.pos) || (posEl ? posEl.textContent.trim() : ''),
           meaning: (prev && prev.meaning) || (meaningEl ? meaningEl.textContent.trim() : ''),
           addedAt: (prev && prev.addedAt) || new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
           group: groupId,
         };
         showToast(`已标记为${group.name}：${word}`);
@@ -1738,6 +2194,7 @@
     window.addEventListener('storage', (e) => {
       if (e.key === STORE_KEY || e.key === TOTALS_KEY) render();
     });
+    document.addEventListener('vb-sync-done', () => render());
   }
 
   function boot() {
@@ -1746,6 +2203,7 @@
     } else if (/\/ielts-vocab\/(index\.html)?$/i.test(location.pathname)) {
       bootOverview();
     }
+    autoSyncOnBoot();
   }
 
   if (document.readyState === 'loading') {
