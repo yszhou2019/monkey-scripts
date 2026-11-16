@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         雅思词汇掌握度助手 · IELTS Vocab Tracker
 // @namespace    https://www.leonwang.cc/ielts-vocab/
-// @version      2.11.0
+// @version      2.11.1
 // @description  为 leonwang.cc 雅思词汇卡片增加可配置分组标记、分组筛选、WebDAV（坚果云）多端同步、本单元与全站熟悉度进度条、深色主题；单词详情默认隐藏中文、只留英文例句，状态可导出 / 导入 JSON。
 // @match        https://www.leonwang.cc/ielts-vocab/*
 // @run-at       document-start
@@ -363,6 +363,7 @@
   }
 
   // ===================== WebDAV 同步（坚果云之类） =====================
+  const SYNC_DEFAULT_URL = 'https://dav.jianguoyun.com/dav/IELTS/ielts-vocab-tracker.json';
   const SYNC_TIMEOUT = 20000;
   const AUTO_SYNC_DELAY = 2500;
   const AUTO_SYNC_MIN_GAP = 4000;
@@ -375,8 +376,9 @@
     if (rawFreq === '0' || rawFreq === 'manual') freq = '0';
     else if (['1', '5', '15'].includes(rawFreq)) freq = rawFreq;
     else freq = raw.auto ? '1' : '0';
+    const rawUrl = String(raw.url || '').trim();
     return {
-      url: String(raw.url || '').trim(),
+      url: rawUrl || SYNC_DEFAULT_URL,
       user: String(raw.user || '').trim(),
       pass: String(raw.pass || ''),
       freq,
@@ -384,6 +386,10 @@
       lastAt: typeof raw.lastAt === 'string' ? raw.lastAt : '',
       lastStatus: typeof raw.lastStatus === 'string' ? raw.lastStatus : '',
     };
+  }
+
+  function canAutoSync(cfg) {
+    return !!(cfg && cfg.url && (cfg.user || cfg.pass));
   }
 
   function stampOf(value) {
@@ -617,7 +623,7 @@
 
   function scheduleAutoSync(delay) {
     const cfg = getSyncConfig(readStore());
-    if (cfg.freq === '0' || !cfg.url || syncBusy) return;
+    if (cfg.freq === '0' || !canAutoSync(cfg) || syncBusy) return;
     clearTimeout(autoTimer);
     autoTimer = setTimeout(() => {
       autoTimer = null;
@@ -648,10 +654,10 @@
     stopAutoInterval();
     const cfg = getSyncConfig(readStore());
     const minutes = Number(cfg.freq);
-    if (!cfg.url || !(minutes > 0)) return;
+    if (!canAutoSync(cfg) || !(minutes > 0)) return;
     autoInterval = setInterval(() => {
       const current = getSyncConfig(readStore());
-      if (current.freq === '0' || !current.url) {
+      if (current.freq === '0' || !canAutoSync(current)) {
         stopAutoInterval();
         return;
       }
@@ -664,7 +670,7 @@
 
   function autoSyncOnBoot() {
     const cfg = getSyncConfig(readStore());
-    if (!cfg.url) return;
+    if (!canAutoSync(cfg)) return;
     if (cfg.freq !== '0') applyAutoInterval();
     if (!cfg.bootSync) return;
     lastAutoSyncAt = Date.now();
@@ -1422,7 +1428,7 @@
             <button type="button" class="vb-mini" id="vbSyncPush">覆盖上传</button>
           </div>
           <div class="vb-sync-status" id="vbSyncStatus"></div>
-          <div class="vb-sync-note">坚果云请用「应用密码」而非登录密码；频率选 0 分钟时不做定时或改动同步，只在点按钮时同步；「刷新页面后自动同步一次」与频率互不影响。配置只存本机，不会写入导出的 JSON。首次使用先在坚果云里建好文件夹。</div>
+          <div class="vb-sync-note">文件地址已预填坚果云默认路径（可在坚果云里换成自己的文件夹）；请用「应用密码」而非登录密码。频率选 0 分钟时不做定时或改动同步，只在点按钮时同步；「刷新页面后自动同步一次」与频率互不影响。配置只存本机，不会写入导出的 JSON。</div>
         </div>
         <div class="vb-settings-foot">
           <button type="button" class="vb-mini" id="vbAddGroup">＋ 新建分组</button>
@@ -1485,7 +1491,7 @@
       let text = message;
       if (!text) {
         const cfg = getSyncConfig(store);
-        if (!cfg.url) text = '未配置 · 填好地址后即可多端同步';
+        if (!cfg.user && !cfg.pass) text = '填好账号和应用密码即可同步';
         else if (cfg.lastAt) text = `上次同步：${formatSyncTime(cfg.lastAt)}`;
         else text = '配置已保存，尚未同步';
       }
@@ -1523,15 +1529,21 @@
     }
 
     syncUrlInput.addEventListener('change', () => {
-      storeSyncConfig({ url: syncUrlInput.value.trim() });
+      const value = syncUrlInput.value.trim() || SYNC_DEFAULT_URL;
+      syncUrlInput.value = value;
+      storeSyncConfig({ url: value });
       applyAutoInterval();
       updateSyncStatus();
     });
     syncUserInput.addEventListener('change', () => {
       storeSyncConfig({ user: syncUserInput.value.trim() });
+      applyAutoInterval();
+      updateSyncStatus();
     });
     syncPassInput.addEventListener('change', () => {
       storeSyncConfig({ pass: syncPassInput.value });
+      applyAutoInterval();
+      updateSyncStatus();
     });
     syncFreqInput.addEventListener('change', () => {
       storeSyncConfig({ freq: syncFreqInput.value });
