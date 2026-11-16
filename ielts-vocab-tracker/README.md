@@ -76,6 +76,11 @@ entries.
 
 ![The marked-words panel listing the marked words of the current chapter, each with a remove button.](../images/script-ielts-tracker-panel.png)
 
+At 390px wide (a phone) the filter chips wrap onto a second row, cards stay in two columns,
+and the progress bar and ⚙ settings keep working.
+
+![The vocabulary page at phone width: filter chips wrapped onto two rows, cards in two columns, and the chapter progress reading 19 / 227.](../images/script-ielts-tracker-mobile.png)
+
 ---
 
 ## Dark theme
@@ -105,7 +110,8 @@ so your phone can stay dark while the desktop stays light.
 On Android, use a mobile browser that supports extensions (for example Edge Canary or
 Firefox for Android) plus Tampermonkey / Violentmonkey, then import the same file. The UI
 is responsive: the filter bar sticks below the mobile header, and the marked-words panel
-opens full width.
+opens full width. The WebDAV section in ⚙ works on phones too, so a desktop and a phone
+pointed at the same file share one set of marks.
 
 Before installing an update, export a backup; the store is versioned and existing marks are
 kept, but a JSON file is the safest rollback.
@@ -144,7 +150,11 @@ Notes:
 ## WebDAV sync
 
 Sync keeps one JSON file on the server and merges it into every device. It is off until you
-fill in credentials, so a fresh install never sends anything anywhere.
+fill in credentials, so a fresh install never sends anything anywhere. A desktop and a phone
+entered with the same file URL and the same account end up with one shared set of marks: what
+you unmark on the desktop is unmarked on the phone after its next sync.
+
+![The "云同步 · WebDAV" area of the settings panel: the file URL is prefilled with the Nutstore default path, the account field holds the placeholder your-account@example.com and the password field a placeholder string; sync frequency is set to every 5 minutes, and below it sit the 立即同步 / 仅下载 / 覆盖上传 buttons plus the last-sync time.](../images/script-ielts-tracker-sync.png)
 
 ### Nutstore setup
 
