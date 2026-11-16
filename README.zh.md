@@ -29,7 +29,7 @@
 ![雅思词汇页顶部有筛选条和本单元进度条，部分卡片保留原位并染上所属分组的颜色。](images/script-ielts-tracker.png)
 
 - 文档：[中文](ielts-vocab-tracker/README.zh.md) · [English](ielts-vocab-tracker/README.md)
-- 安装：[`ielts-vocab-tracker/ielts-vocab-tracker.user.js`](ielts-vocab-tracker/ielts-vocab-tracker.user.js)
+- 安装：[`ielts-vocab-tracker/ielts-vocab-tracker.user.js`](ielts-vocab-tracker/ielts-vocab-tracker.user.js) · [Greasy Fork](https://greasyfork.org/zh-CN/scripts/605737)
 
 ---
 

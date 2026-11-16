@@ -74,6 +74,7 @@
    - [Tampermonkey 油猴](https://www.tampermonkey.net/)（Chrome / Edge / Firefox / Safari）
    - 或 [Violentmonkey](https://violentmonkey.github.io/)。
 2. 添加 `ielts-vocab-tracker.user.js`：
+   - 在 [Greasy Fork](https://greasyfork.org/zh-CN/scripts/605737) 脚本页点「安装此脚本」（最省事），**或**
    - **油猴** → 管理面板 → 实用工具 → 导入（选择文件），**或**
    - 新建脚本，把文件内容粘贴进去并保存。
 3. 打开词汇卡片页可以看到筛选条和本单元进度条；打开刷词页可以看到总进度和 JSON 备份入口。

@@ -102,6 +102,7 @@ so your phone can stay dark while the desktop stays light.
    - [Tampermonkey](https://www.tampermonkey.net/) (Chrome / Edge / Firefox / Safari)
    - or [Violentmonkey](https://violentmonkey.github.io/).
 2. Add `ielts-vocab-tracker.user.js`:
+   - click *Install this script* on its [Greasy Fork page](https://greasyfork.org/en/scripts/605737) (easiest), **or**
    - **Tampermonkey** → Dashboard → Utilities → *Import* (pick the file), **or**
    - create a new script, paste the file contents, and save.
 3. Open the vocabulary handout for the per-chapter UI, or the spelling practice page for the

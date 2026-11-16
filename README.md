@@ -34,7 +34,7 @@ default for self-testing, and a low-glare dark theme is included.
 ![The IELTS vocabulary grid with a filter bar and per-chapter progress bar above it. Some cards keep their place but are tinted with their group colour.](images/script-ielts-tracker.png)
 
 - Docs: [English](ielts-vocab-tracker/README.md) · [中文](ielts-vocab-tracker/README.zh.md)
-- Install: [`ielts-vocab-tracker/ielts-vocab-tracker.user.js`](ielts-vocab-tracker/ielts-vocab-tracker.user.js)
+- Install: [`ielts-vocab-tracker/ielts-vocab-tracker.user.js`](ielts-vocab-tracker/ielts-vocab-tracker.user.js) · [Greasy Fork](https://greasyfork.org/en/scripts/605737)
 
 ---
 
