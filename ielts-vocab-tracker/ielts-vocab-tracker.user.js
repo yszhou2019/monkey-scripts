@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         雅思词汇掌握度助手 · IELTS Vocab Tracker
 // @namespace    https://www.leonwang.cc/ielts-vocab/
-// @version      2.12.0
-// @description  为 leonwang.cc 雅思词汇卡片增加可配置分组标记、分组筛选、WebDAV（坚果云）多端同步、本单元与全站熟悉度进度条、深色主题；单词详情默认隐藏中文、只留英文例句，状态可导出 / 导入 JSON。
+// @version      2.13.0
+// @description  为 leonwang.cc 雅思词汇卡片增加可配置分组标记、分组筛选、WebDAV（坚果云）多端同步（筛选栏一键同步按钮）、本单元与全站熟悉度进度条、深色主题；单词详情默认隐藏中文、只留英文例句，手机端轻点详情卡即可关闭；状态可导出 / 导入 JSON。
 // @license      MIT
 // @homepageURL  https://github.com/yszhou2019/monkey-scripts
 // @supportURL   https://github.com/yszhou2019/monkey-scripts/issues
@@ -1078,8 +1078,16 @@
         background: var(--bg, #f5f7fa);
       }
       .vb-filter { display: flex; flex-wrap: wrap; gap: 8px; }
-      .vb-filter .vb-settings-btn { margin-left: auto; }
+      .vb-filter .vb-actions {
+        display: flex; align-items: center; gap: 8px;
+        margin-left: auto; flex-wrap: nowrap;
+      }
+      .vb-filter .vb-settings-btn { margin-left: 0; }
       .vb-filter .vb-theme-btn { margin-left: 0; }
+      .vb-sync-glyph { display: inline-block; transform-origin: 50% 50%; }
+      .vb-sync-btn.busy { cursor: default; opacity: .75; }
+      .vb-sync-btn.busy .vb-sync-glyph { animation: vb-sync-spin .9s linear infinite; }
+      @keyframes vb-sync-spin { to { transform: rotate(360deg); } }
       .vb-filter button {
         display: inline-flex; align-items: center; gap: 6px;
         border: 1px solid #dfe6e9; background: #fff; color: #576574;
@@ -1369,6 +1377,8 @@
         .vb-panel { top: 64px; right: 8px; left: 8px; bottom: 84px; width: auto; max-width: none; }
         .vb-settings { padding: 12px; align-items: flex-start; }
         .vb-settings-card { margin-top: 48px; max-height: calc(100vh - 96px); }
+        /* 手机：详情卡按内容高度显示，最多占 86% 屏高，剩下的顶部区域可点按关闭 */
+        .overlay-content { height: auto; max-height: 86vh; max-height: 86dvh; }
       }
     `;
     document.head.appendChild(style);
@@ -1383,6 +1393,14 @@
     themeBtn.className = 'vb-theme-btn';
     themeBtn.addEventListener('click', cycleTheme);
 
+    const syncBtn = document.createElement('button');
+    syncBtn.type = 'button';
+    syncBtn.className = 'vb-sync-btn';
+    syncBtn.id = 'vbSyncBtn';
+    syncBtn.title = '立即同步（WebDAV）';
+    syncBtn.setAttribute('aria-label', '立即同步');
+    syncBtn.innerHTML = '<span class="vb-sync-glyph">☁</span> 同步';
+
     const settingsBtn = document.createElement('button');
     settingsBtn.type = 'button';
     settingsBtn.className = 'vb-settings-btn';
@@ -1390,8 +1408,36 @@
     settingsBtn.textContent = '⚙';
     settingsBtn.title = '分组设置';
 
-    filterBar.append(settingsBtn, themeBtn);
+    // 右侧控制组：同步 · 设置 · 主题，整体跟随筛选标签换行
+    const actions = document.createElement('div');
+    actions.className = 'vb-actions';
+    actions.append(syncBtn, settingsBtn, themeBtn);
+
+    filterBar.append(actions);
     updateThemeButton();
+
+    function setSyncBtnBusy(busy) {
+      syncBtn.classList.toggle('busy', busy);
+      syncBtn.disabled = busy;
+      syncBtn.querySelector('.vb-sync-glyph').textContent = busy ? '⟳' : '☁';
+    }
+
+    syncBtn.addEventListener('click', async () => {
+      if (syncBtn.classList.contains('busy')) return;
+      if (!canAutoSync(getSyncConfig(store))) {
+        openSettings();
+        showToast('先在设置里填好网盘账号和应用密码');
+        return;
+      }
+      setSyncBtnBusy(true);
+      try {
+        await runSync('both');
+      } catch (err) {
+        // runSync 自己会弹提示
+      } finally {
+        setSyncBtnBusy(false);
+      }
+    });
 
     function getGroups() {
       if (!Array.isArray(store.settings.groups)) {
@@ -1423,7 +1469,7 @@
       activeGroups().forEach((group) => {
         addChip(group.id, `${esc(group.icon)} ${esc(group.name)}`);
       });
-      filterBar.insertBefore(frag, settingsBtn);
+      filterBar.insertBefore(frag, actions);
       filterBar.querySelectorAll('button[data-filter]').forEach((btn) => {
         btn.classList.toggle('active', btn.dataset.filter === currentFilter);
       });
@@ -2204,6 +2250,36 @@
       applyCnVisibility();
     }
 
+    // ===================== 手机端：轻点详情卡即关闭 =====================
+    // 手势（滚动、选词）不算轻点；按钮、输入框、图片、批注画布保持原行为。
+    function setupOverlayTapClose() {
+      const overlay = document.getElementById('overlay');
+      if (!overlay || overlay.dataset.vbTapClose) return;
+      overlay.dataset.vbTapClose = '1';
+      let startX = 0;
+      let startY = 0;
+      let startAt = 0;
+      let dragged = false;
+      overlay.addEventListener('pointerdown', (e) => {
+        startX = e.clientX;
+        startY = e.clientY;
+        startAt = Date.now();
+        dragged = false;
+      }, true);
+      overlay.addEventListener('pointermove', (e) => {
+        if (Math.abs(e.clientX - startX) > 10 || Math.abs(e.clientY - startY) > 10) dragged = true;
+      }, true);
+      overlay.addEventListener('pointerup', (e) => {
+        if (dragged || Date.now() - startAt > 600) return;
+        if (!window.matchMedia('(max-width: 768px)').matches) return;
+        const content = document.getElementById('overlayContent');
+        if (!content || !content.contains(e.target)) return;
+        if (e.target.closest('button, a, input, textarea, select, label, img, canvas, .overlay-note-area')) return;
+        const closeBtn = document.getElementById('closeOverlayBtn');
+        if (closeBtn) closeBtn.click();
+      }, true);
+    }
+
     // ===================== 监听页面变化 =====================
     // 页面每次切换章节 / 上传图片都会重绘 cardGrid，重绘后重新套用标记与筛选
     let scheduled = false;
@@ -2230,6 +2306,7 @@
 
     const overlayContent = document.getElementById('overlayContent');
     if (overlayContent) {
+      setupOverlayTapClose();
       const overlayObserver = new MutationObserver(decorateOverlay);
       overlayObserver.observe(overlayContent, { childList: true });
     }
